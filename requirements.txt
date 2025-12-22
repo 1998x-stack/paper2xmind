@@ -1,0 +1,8 @@
+# Core dependencies
+openai>=1.0.0
+requests>=2.31.0
+PyMuPDF>=1.23.0  # fitz for PDF extraction
+
+# Optional but recommended
+aiohttp>=3.9.0  # For async HTTP requests
+tqdm>=4.66.0  # For better progress bars
