@@ -1,6 +1,28 @@
-config.py
-__pycache__
-*/__pycache__
-data/*
-output/*
+# Environment
+.env
+
+# Python
+__pycache__/
+*/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Runtime data
+data/
+output/
+logs/
+
+# OS
 .DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
