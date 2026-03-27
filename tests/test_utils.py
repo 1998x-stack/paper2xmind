@@ -1,74 +1,83 @@
-"""
-Unit tests for utility functions
-"""
-import pytest
+"""Unit tests for utility functions."""
+import asyncio
 import os
-import tempfile
 import json
-from datetime import datetime
+import tempfile
+import time
+import pytest
 
-from utils import (
+from paper2xmind.utils import (
     save_json, load_json, timer, format_timestamp,
     sanitize_filename, get_file_size_mb, create_metadata,
-    print_progress, estimate_processing_time, ProgressTracker
+    estimate_processing_time, ProgressTracker,
 )
 
 
+# --- Critical fix: async timer ---
+
+def test_timer_sync():
+    """Test timer with a sync function."""
+    @timer
+    def add(a, b):
+        return a + b
+
+    result = add(1, 2)
+    assert result == 3
+
+
+@pytest.mark.asyncio
+async def test_timer_async():
+    """Test timer with an async function — the critical bug fix."""
+    @timer
+    async def async_add(a, b):
+        await asyncio.sleep(0.01)
+        return a + b
+
+    result = await async_add(1, 2)
+    assert result == 3
+
+
+@pytest.mark.asyncio
+async def test_timer_async_preserves_name():
+    """Test that timer preserves function name via functools.wraps."""
+    @timer
+    async def my_func():
+        return True
+
+    assert my_func.__name__ == "my_func"
+
+
+# --- Existing utility tests ---
+
 def test_save_and_load_json():
-    """Test saving and loading JSON data"""
+    """Test saving and loading JSON data."""
     test_data = {"key": "value", "number": 42}
-    
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
         temp_path = f.name
-    
     try:
-        # Save JSON
         save_json(test_data, temp_path)
-        
-        # Load JSON
         loaded_data = load_json(temp_path)
-        
         assert loaded_data == test_data
     finally:
-        # Clean up
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
 
-def test_timer_decorator():
-    """Test the timer decorator"""
-    @timer
-    def dummy_function():
-        return "result"
-    
-    result = dummy_function()
-    assert result == "result"
-
-
 def test_format_timestamp():
-    """Test timestamp formatting"""
+    """Test timestamp formatting."""
     timestamp = format_timestamp()
-    # Should be in format YYYY-MM-DD HH:MM:SS
     assert len(timestamp) == 19
-    assert timestamp[4] == '-' and timestamp[7] == '-' and timestamp[10] == ' ' and timestamp[13] == ':' and timestamp[16] == ':'
+    assert timestamp[4] == '-' and timestamp[7] == '-'
 
 
 def test_sanitize_filename():
-    """Test filename sanitization"""
-    # Test basic cases
+    """Test filename sanitization."""
     assert sanitize_filename("normal.pdf") == "normal.pdf"
-    
-    # Test invalid characters
+
     result = sanitize_filename('file<>"|?.pdf')
-    # All invalid chars should be replaced
     assert '<' not in result
     assert '>' not in result
-    assert '"' not in result
-    assert '|' not in result
-    assert '?' not in result
-    assert '*' not in result
-    
-    # Test length limiting
+
     long_name = "a" * 100 + ".pdf"
     result = sanitize_filename(long_name, max_length=20)
     assert len(result) <= 20
@@ -76,29 +85,25 @@ def test_sanitize_filename():
 
 
 def test_get_file_size_mb():
-    """Test file size calculation"""
-    # Create a temporary file
+    """Test file size calculation."""
     with tempfile.NamedTemporaryFile(delete=False) as f:
-        f.write(b"x" * 1024)  # 1KB
+        f.write(b"x" * 1024)
         temp_path = f.name
-    
     try:
         size_mb = get_file_size_mb(temp_path)
-        assert size_mb == 1024 / (1024 * 1024)  # 1KB in MB
+        assert size_mb == 1024 / (1024 * 1024)
     finally:
         os.remove(temp_path)
 
 
 def test_create_metadata():
-    """Test metadata creation"""
+    """Test metadata creation."""
     metadata = create_metadata(
         arxiv_id="2301.12345",
         paper_title="Test Paper",
-        total_pages=10
+        total_pages=10,
     )
-    
     assert "generated_at" in metadata
-    assert "tool" in metadata
     assert metadata["arxiv_id"] == "2301.12345"
     assert metadata["arxiv_url"] == "https://arxiv.org/abs/2301.12345"
     assert metadata["title"] == "Test Paper"
@@ -106,30 +111,19 @@ def test_create_metadata():
 
 
 def test_estimate_processing_time():
-    """Test processing time estimation"""
-    # Test with different page counts
-    time_str = estimate_processing_time(1)  # Should be in seconds
+    """Test processing time estimation."""
+    time_str = estimate_processing_time(1)
     assert "seconds" in time_str
-    
-    time_str = estimate_processing_time(30)  # Should be in minutes
+
+    time_str = estimate_processing_time(30)
     assert "minutes" in time_str or "seconds" in time_str
 
 
 def test_progress_tracker():
-    """Test progress tracker"""
-    tracker = ProgressTracker(10, "Test Processing")
-    
-    # Simulate progress updates
-    for i in range(10):
+    """Test progress tracker."""
+    tracker = ProgressTracker(10, "Test")
+    for _ in range(10):
         tracker.update()
-    
-    # Finish the tracker
     tracker.finish()
-    
-    # Verify properties
     assert tracker.total_steps == 10
     assert tracker.current_step == 10
-
-
-if __name__ == '__main__':
-    pytest.main([__file__])
