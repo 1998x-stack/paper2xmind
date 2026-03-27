@@ -1,249 +1,113 @@
-<div align="center">
+# paper2xmind
 
-# 🧠 ArXiv Paper to XMind Converter
+Convert ArXiv papers (or local PDFs) into XMind mind maps using AI-powered content analysis.
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-orange)](https://openai.com/)
+The tool downloads a paper, extracts text, uses an LLM to analyze the hierarchical structure, and generates a `.xmind` file you can open in XMind.
 
-### Transform Academic Papers into Visual Mind Maps 📚 → 🧩
+## Features
 
-**Automatically convert ArXiv papers to structured XMind mind maps for rapid comprehension**
+- **Multiple input formats**: ArXiv URL, ArXiv ID, or local PDF path
+- **AI-powered analysis**: Extracts paper structure using OpenAI-compatible APIs (DashScope, OpenAI, etc.)
+- **Smart chunking**: Handles large papers by splitting into chunks and merging results
+- **Concurrent processing**: Analyzes multiple chunks in parallel with rate limiting
+- **Batch conversion**: Process multiple papers at once
+- **CLI & Python API**: Use from the command line or import as a library
 
-</div>
+## Installation
 
-## ✨ Features
+```bash
+# Clone and install in development mode
+git clone <repo-url>
+cd paper2xmind
+pip install -e ".[dev]"
+```
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| 🌐 Multi-input Support | ✅ | ArXiv URL, ID, and local PDF files |
-| 🤖 AI-Powered Analysis | ✅ | OpenAI API intelligent content parsing |
-| 📊 Hierarchical Mapping | ✅ | Auto-generated structured mind maps |
-| 🔁 Chunk Processing | ✅ | Handles large documents (>16K tokens) |
-| 📝 Detailed Descriptions | ✅ | Preserves paper's comprehensive info |
-| 🎯 Structure Optimization | ✅ | Optimized depth and node relationships |
-| 🚀 Batch Processing | ✅ | Process multiple papers at once |
+## Configuration
 
-## 🏗️ Project Architecture
+The tool reads API credentials from environment variables. Set them in your shell profile or create a `.env` file in the project root (see `.env.example`).
+
+**Required:**
+```bash
+export DASHSCOPE_API_KEY="your-api-key"  # or OPENAI_API_KEY
+```
+
+**Optional (with defaults):**
+```bash
+export OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
+export OPENAI_MODEL="qwen-plus"
+```
+
+## Usage
+
+### Command Line
+
+```bash
+# Convert by ArXiv ID
+paper2xmind 2301.12345
+
+# Convert by ArXiv URL
+paper2xmind https://arxiv.org/abs/2301.12345
+
+# Convert a local PDF
+paper2xmind ./my_paper.pdf
+
+# Specify output filename
+paper2xmind 2301.12345 -o my_mindmap.xmind
+
+# Batch convert (one input per line in file)
+paper2xmind --batch papers.txt
+```
+
+### Python API
+
+```python
+import asyncio
+from paper2xmind.cli import ArxivToXmind
+
+async def convert_paper():
+    converter = ArxivToXmind()
+    output = await converter.convert("2301.12345")
+    print(f"Generated: {output}")
+
+asyncio.run(convert_paper())
+```
+
+## Project Structure
 
 ```
 paper2xmind/
-├── 📁 core/                    # Core modules
-│   ├── arxiv_downloader.py    # 📥 ArXiv papers download & processing
-│   ├── pdf_extractor.py       # 📄 PDF text extraction & chunking
-│   ├── content_analyzer.py    # 🧠 AI-powered content analysis
-│   ├── structure_builder.py   # 🏗️  XMind structure construction
-│   └── xmind_generator.py     # 💾 Final XMind file generation
-├── 📁 utils/                   # Utility functions
-│   ├── config.py             # ⚙️  Configuration management
-│   └── utils.py              # 🔧 Helper functions
-├── 📁 tests/                   # 🧪 Unit & integration tests
-│   ├── test_components.py    # 🔍 Component-level tests
-│   └── test_end_to_end.py    # 🔄 End-to-end tests
-├── 📄 main.py                 # 🚀 Entry point
-├── 📦 requirements.txt        # 📚 Dependencies
-├── 📁 data/                   # 📂 Input data storage
-├── 📁 output/                 # 📤 Generated mind maps
-└── 📁 xmind_base/            # 🎨 XMind template files
+├── paper2xmind/        # Python package
+│   ├── cli.py          # CLI entry point
+│   ├── config.py       # Settings (env-based)
+│   ├── downloader.py   # ArXiv PDF download
+│   ├── extractor.py    # PDF text extraction
+│   ├── analyzer.py     # AI content analysis
+│   ├── builder.py      # XMind structure building
+│   ├── generator.py    # XMind file generation
+│   └── utils.py        # Shared utilities
+├── xmind_base/         # XMind template files
+├── tests/              # Test suite
+├── docs/               # Documentation
+└── pyproject.toml      # Package config
 ```
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.8+
-- OpenAI API Key
-- Internet connection
-
-### Installation
+## Development
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/1998x-stack/paper2xmind.git
-cd paper2xmind
+# Install with dev dependencies
+pip install -e ".[dev]"
 
-# 2. Install dependencies
-pip install -r requirements.txt
+# Run tests
+pytest
 
-# 3. Set up environment variables
-cp .env.example .env
-# Edit .env with your OpenAI API key
+# Run tests with coverage
+pytest --cov=paper2xmind --cov-report=term-missing
 ```
 
-### Configuration
+## How It Works
 
-Create a `.env` file with your OpenAI credentials:
-
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4o
-OPENAI_BASE_URL=https://api.openai.com/v1
-```
-
-### Basic Usage
-
-```bash
-# 🎯 Convert using ArXiv ID
-python main.py 2301.12345
-
-# 🌐 Convert using ArXiv URL
-python main.py https://arxiv.org/abs/2301.12345
-
-# 📄 Convert local PDF
-python main.py ./path/to/paper.pdf
-
-# 📝 Specify output filename
-python main.py 2301.12345 -o "my_research_map.xmind"
-
-# 📦 Batch processing
-python main.py --batch papers_list.txt
-```
-
-### Interactive Mode
-
-```bash
-# Launch interactive mode
-python main.py
-```
-
-## 🔄 Processing Pipeline
-
-```mermaid
-graph TD
-    A[Input: Paper ID/URL/PDF] --> B[Download/Validate PDF]
-    B --> C[Extract Text Content]
-    C --> D{Large Document?<br/>Check Token Count}
-    D -->|Yes| E[Chunk Processing<br/>Split into Pages]
-    D -->|No| F[Single Analysis]
-    E --> G[Parallel AI Analysis]
-    G --> H[Merge Results]
-    F --> H
-    H --> I[Build XMind Structure]
-    I --> J[Generate .xmind File]
-    J --> K[Export to Output Folder]
-```
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-# Run all tests
-python -m pytest tests/
-
-# Run component tests
-python test_components.py
-
-# Run with coverage
-python -m pytest --cov=. tests/
-```
-
-## 🎯 Output Structure
-
-Generated mind maps follow this logical hierarchy:
-
-```
-🔬 Research Paper Title
-├── 📄 Abstract
-│   └── 📝 Key contributions & findings
-├── 📋 Introduction
-│   ├── 📚 Background & context
-│   ├── ❓ Problem statement
-│   └── ✨ Novel contributions
-├── 📖 Related Work
-│   ├── 🏗️ Previous approaches
-│   └── 🚫 Existing limitations
-├── ⚙️ Methodology
-│   ├── 🏗️ Model architecture
-│   ├── 🔄 Training strategy
-│   └── ⚙️ Implementation details
-├── 🧪 Experiments
-│   ├── 📊 Datasets
-│   ├── 📐 Baselines
-│   └── 📈 Evaluation metrics
-├── 📊 Results
-│   ├── 🏆 Main results
-│   ├── 🔬 Ablation studies
-│   └── 📊 Performance analysis
-└── 📝 Conclusion
-    ├── 📋 Summary
-    └── 🔮 Future work
-```
-
-## ⚙️ Configuration Options
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENAI_API_KEY` | `""` | Your OpenAI API key |
-| `OPENAI_MODEL` | `"gpt-4o"` | Model to use for analysis |
-| `MAX_TOKENS_PER_REQUEST` | `16384` | Max tokens per API call |
-| `PAGES_PER_CHUNK` | `3` | Pages per processing chunk |
-| `OUTPUT_DIR` | `"./output"` | Output directory path |
-
-## 🛠️ Development
-
-### Running Tests
-
-```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run unit tests
-python -m pytest tests/unit/
-
-# Run integration tests
-python -m pytest tests/integration/
-
-# Run all tests with coverage
-python -m pytest --cov=paper2xmind --cov-report=html
-```
-
-### Code Quality
-
-```bash
-# Lint the code
-flake8 .
-
-# Format code
-black .
-
-# Type checking
-mypy .
-```
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how you can help:
-
-1. 🍴 Fork the repository
-2. 🌟 Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. 📝 Commit your changes (`git commit -m 'Add amazing feature'`)
-4. 🚀 Push to the branch (`git push origin feature/amazing-feature`)
-5. 🔄 Open a Pull Request
-
-### Development Guidelines
-
-- Write clear, descriptive commit messages
-- Include tests for new features
-- Follow PEP 8 coding standards
-- Document public APIs with docstrings
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Support
-
-- 🐛 Issues: [GitHub Issues](https://github.com/1998x-stack/paper2xmind/issues)
-- 🌟 Star: Show your support by starring the repository
-- 📧 Contact: [Your Email] for questions
-
----
-
-<div align="center">
-
-**Made with ❤️ for researchers and students worldwide**
-
-⭐ Star this repository if it helped you!
-
-</div>
+1. **Download** - Fetches the PDF from ArXiv (or uses a local file)
+2. **Extract** - Pulls text from the PDF using PyMuPDF
+3. **Analyze** - Sends text to an LLM to extract hierarchical structure
+4. **Build** - Converts the AI output into XMind node format
+5. **Generate** - Packages everything into a `.xmind` ZIP file
