@@ -53,7 +53,7 @@ export const XMindViewer: React.FC<XMindViewerProps> = ({
         
         {node.children && node.children.length > 0 && (
           <div className="ml-4 border-l border-gray-200">
-            {node.children.map(child => renderNode(child, level + 1))}
+            {node.children.map((child: XMindNode) => renderNode(child, level + 1))}
           </div>
         )}
       </div>
@@ -76,7 +76,7 @@ export const XMindViewer: React.FC<XMindViewerProps> = ({
     <div className="h-full overflow-auto p-4">
       <h1 className="text-xl font-bold mb-4">{xmindData.xmind_data.title}</h1>
       <div className="space-y-2">
-        {xmindData.xmind_data.children.map(node => renderNode(node))}
+        {xmindData.xmind_data.children.map((node: XMindNode) => renderNode(node))}
       </div>
     </div>
   )
