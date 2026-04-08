@@ -65,5 +65,5 @@ class BM25Search:
                 "score": float(scores[i]),
             }
             for i in top_indices
-            if scores[i] > 0
+            if len(self.paragraphs) > i
         ]
