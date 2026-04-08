@@ -11,8 +11,14 @@ __pycache__/
 dist/
 build/
 
-# Runtime data
-data/
+# Runtime data (keep structure, ignore contents)
+data/papers/*
+data/chat/*
+data/uploads/*
+!data/papers/.gitkeep
+!data/chat/.gitkeep
+!data/uploads/.gitkeep
+!data/index/
 output/
 logs/
 
@@ -27,3 +33,4 @@ logs/
 .pytest_cache/
 htmlcov/
 .coverage
+.opencode/
