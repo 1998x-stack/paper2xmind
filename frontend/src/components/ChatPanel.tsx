@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { ChatMessage } from '../types'
 
 interface ChatPanelProps {
@@ -9,6 +9,30 @@ interface ChatPanelProps {
 export const ChatPanel: React.FC<ChatPanelProps> = ({ paperId, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  useEffect(() => {
+    if (paperId) {
+      // Load chat history
+      fetch(`/api/papers/${paperId}/chat`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.messages && data.messages.length > 0) {
+            setMessages(data.messages)
+          }
+        })
+        .catch(console.error)
+    }
+  }, [paperId])
 
   const handleSend = () => {
     if (!input.trim() || !paperId) return
@@ -22,16 +46,81 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ paperId, onClose }) => {
 
     setMessages(prev => [...prev, userMessage])
     setInput('')
+    setIsStreaming(true)
 
-    setTimeout(() => {
-      const assistantMessage: ChatMessage = {
-        timestamp: new Date().toISOString(),
-        role: 'assistant',
-        content: 'Chat functionality will be implemented in Phase 2 with streaming.',
-        message_id: `assistant_${Date.now()}`,
-      }
-      setMessages(prev => [...prev, assistantMessage])
-    }, 500)
+    // Start SSE stream
+    fetch(`/api/papers/${paperId}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: input, message_id: userMessage.message_id }),
+    })
+      .then(response => {
+        if (!response.ok) throw new Error('Stream failed')
+        const reader = response.body?.getReader()
+        if (!reader) throw new Error('No reader')
+
+        const decoder = new TextDecoder()
+        let assistantContent = ''
+        let messageId = ''
+
+        const read = () => {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              setIsStreaming(false)
+              return
+            }
+
+            const chunk = decoder.decode(value)
+            const lines = chunk.split('\n\n')
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6))
+
+                  if (data.type === 'chunk') {
+                    assistantContent += data.content
+                    messageId = data.message_id
+
+                    setMessages(prev => {
+                      const lastMsg = prev[prev.length - 1]
+                      if (lastMsg?.role === 'assistant' && lastMsg.message_id === messageId) {
+                        return [...prev.slice(0, -1), { ...lastMsg, content: assistantContent }]
+                      }
+                      return [...prev, {
+                        timestamp: new Date().toISOString(),
+                        role: 'assistant',
+                        content: assistantContent,
+                        message_id: messageId,
+                      }]
+                    })
+                  } else if (data.type === 'error') {
+                    console.error('Stream error:', data.message)
+                    setIsStreaming(false)
+                  }
+                } catch (e) {
+                  // Ignore parse errors for incomplete chunks
+                }
+              }
+            }
+
+            read()
+          })
+        }
+
+        read()
+      })
+      .catch(err => {
+        console.error('Chat stream error:', err)
+        setIsStreaming(false)
+        // Add error message
+        setMessages(prev => [...prev, {
+          timestamp: new Date().toISOString(),
+          role: 'assistant',
+          content: 'Error: Could not connect to chat service. Please check if the backend is running.',
+          message_id: `error_${Date.now()}`,
+        }])
+      })
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -68,6 +157,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ paperId, onClose }) => {
             </div>
           ))
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       <div className="p-4 border-t border-gray-200">
@@ -77,14 +167,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ paperId, onClose }) => {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Type your message..."
-            className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+            placeholder={isStreaming ? 'Waiting for response...' : 'Type your message...'}
+            disabled={isStreaming}
+            className="flex-1 p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
           />
           <button
             onClick={handleSend}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+            disabled={isStreaming || !input.trim()}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm disabled:bg-gray-400"
           >
-            Send
+            {isStreaming ? '...' : 'Send'}
           </button>
         </div>
       </div>
