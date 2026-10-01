@@ -10,6 +10,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+node_modules/
 
 # Runtime data (keep structure, ignore contents)
 data/papers/*
@@ -19,6 +20,14 @@ data/uploads/*
 !data/chat/.gitkeep
 !data/uploads/.gitkeep
 !data/index/
+backend/data/chat/*
+backend/data/uploads/*
+backend/data/papers/*
+backend/data/index/*
+!backend/data/chat/.gitkeep
+!backend/data/uploads/.gitkeep
+!backend/data/papers/.gitkeep
+!backend/data/index/.gitkeep
 output/
 logs/
 
