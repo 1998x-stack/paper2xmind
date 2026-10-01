@@ -10,7 +10,7 @@
 - optimize_structure：限制深度、合并「过短或过冗余」父子名，减轻导图臃肿（启发式，非语义理解）。
 """
 import hashlib
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class StructureBuilder:
@@ -25,12 +25,12 @@ class StructureBuilder:
         """初始化构建器，计数器归零。"""
         self.node_counter = 0
 
-    def generate_node_id(self, name: str, parent_id: Optional[str] = None) -> str:
+    def generate_node_id(self, name: str, parent_id: str | None = None) -> str:
         """
         为节点生成较短唯一标识符（16 位十六进制）。
 
         策略：
-        - 内容 = name + parent_id + 当前计数器，做 MD5 后取前 16 位。
+        - 内容 = name + parent_id + 当前计数器，做 SHA256 后取前 16 位。
         - 同父同名在计数器递增后也会得到不同 ID，避免兄弟冲突。
 
         Args:
@@ -41,19 +41,19 @@ class StructureBuilder:
             16 字符的十六进制字符串。
 
         Note:
-            MD5 在此仅作确定性短 ID，非安全场景；若需全局 UUID 可改为 uuid4。
+            SHA256 在此仅作确定性短 ID，非安全场景；若需全局 UUID 可改为 uuid4。
         """
         self.node_counter += 1
         content = f"{name}_{parent_id}_{self.node_counter}"
-        hash_obj = hashlib.md5(content.encode())
+        hash_obj = hashlib.sha256(content.encode())
         return hash_obj.hexdigest()[:16]
 
     def build_xmind_structure(
         self,
-        ai_structure: Dict[str, Any],
-        parent_id: Optional[str] = None,
+        ai_structure: dict[str, Any],
+        parent_id: str | None = None,
         level: int = 0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         深度优先遍历 AI JSON，生成统一中间格式节点。
 
@@ -70,7 +70,7 @@ class StructureBuilder:
         """
         node_id = self.generate_node_id(ai_structure.get("name", "Untitled"), parent_id)
 
-        node: Dict[str, Any] = {
+        node: dict[str, Any] = {
             "node_id": node_id,
             "name": ai_structure.get("name", "Untitled"),
             "level": level,
@@ -88,8 +88,8 @@ class StructureBuilder:
         return node
 
     def add_metadata(
-        self, structure: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, structure: dict[str, Any], metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         将元数据键值对转为根节点上的 labels 列表项（XMind 中显示为标签）。
 
@@ -138,7 +138,7 @@ class StructureBuilder:
                     return False
         return True
 
-    def optimize_structure(self, structure: Dict[str, Any], max_depth: int = 5) -> Dict[str, Any]:
+    def optimize_structure(self, structure: dict[str, Any], max_depth: int = 5) -> dict[str, Any]:
         """
         在保持根节点前提下裁剪/合并子树，控制最大深度并减少无意义浅层节点。
 
@@ -157,13 +157,13 @@ class StructureBuilder:
             _should_merge 基于长度与词重叠启发式，可能误合并语义上不应合并的节点；调参时主要改阈值。
         """
 
-        def _optimize(node: Dict[str, Any], depth: int) -> Optional[Dict[str, Any]]:
+        def _optimize(node: dict[str, Any], depth: int) -> dict[str, Any] | None:
             if depth >= max_depth:
                 if "children" in node:
                     node["children"] = []
                 return node
 
-            if "children" in node and node["children"]:
+            if node.get("children"):
                 optimized = [_optimize(c, depth + 1) for c in node["children"]]
                 node["children"] = [c for c in optimized if c]
 
@@ -210,7 +210,7 @@ class StructureBuilder:
 
         return False
 
-    def print_structure(self, structure: Dict[str, Any], indent: int = 0) -> None:
+    def print_structure(self, structure: dict[str, Any], indent: int = 0) -> None:
         """
         将树打印到标准输出，缩进表示层级，供调试。
 

@@ -14,21 +14,20 @@ import asyncio
 import logging
 import os
 import sys
-from typing import List, Optional
 
+from paper2xmind.analyzer import ContentAnalyzer
+from paper2xmind.builder import StructureBuilder
 from paper2xmind.config import settings as default_settings
 from paper2xmind.downloader import ArxivDownloader
 from paper2xmind.extractor import PDFExtractor
-from paper2xmind.analyzer import ContentAnalyzer
-from paper2xmind.builder import StructureBuilder
 from paper2xmind.generator import XMindGenerator
 from paper2xmind.utils import (
-    save_json,
-    timer,
+    ProgressTracker,
     create_metadata,
     estimate_processing_time,
-    ProgressTracker,
     sanitize_filename,
+    save_json,
+    timer,
 )
 
 
@@ -48,7 +47,7 @@ class ArxivToXmind:
         downloader / pdf_extractor / analyzer / structure_builder / xmind_generator: 各阶段子系统实例。
     """
 
-    def __init__(self, settings: Optional[object] = None) -> None:
+    def __init__(self, settings: object | None = None) -> None:
         """
         组装默认子组件；均传入同一 settings 以保证路径与 API 一致。
 
@@ -58,12 +57,12 @@ class ArxivToXmind:
         self.settings = settings or default_settings
         self.downloader = ArxivDownloader(settings=self.settings)
         self.pdf_extractor = PDFExtractor(settings=self.settings)
-        self.analyzer = ContentAnalyzer(settings=self.settings)
+        self.analyzer = ContentAnalyzer(settings=self.settings, max_concurrent=self.settings.max_concurrent)
         self.structure_builder = StructureBuilder()
         self.xmind_generator = XMindGenerator(settings=self.settings)
 
     @timer
-    async def convert(self, input_str: str, output_filename: Optional[str] = None) -> str:
+    async def convert(self, input_str: str, output_filename: str | None = None) -> str:
         """
         执行单篇论文（或 PDF）的完整转换流程。
 
@@ -107,15 +106,15 @@ class ArxivToXmind:
         if need_chunking:
             print(
                 f"Content too large, splitting into chunks "
-                f"(every {self.settings.pages_per_chunk} pages)"
+                f"(every {self.settings.pages_per_chunk} pages)",
             )
             estimated_time = estimate_processing_time(
-                total_pages, self.settings.pages_per_chunk
+                total_pages, self.settings.pages_per_chunk,
             )
             print(f"Estimated processing time: {estimated_time}")
 
             chunks = self.pdf_extractor.chunk_pages(
-                pages_content, self.settings.pages_per_chunk
+                pages_content, self.settings.pages_per_chunk,
             )
             structures = await self.analyzer.analyze_chunks(chunks)
             paper_title = (
@@ -129,7 +128,7 @@ class ArxivToXmind:
         else:
             print("Content size acceptable, processing as single chunk")
             ai_structure = await self.analyzer.analyze_content(
-                full_text, is_partial=False
+                full_text, is_partial=False,
             )
             paper_title = ai_structure.get("name", "Academic Paper")
 
@@ -142,7 +141,7 @@ class ArxivToXmind:
 
         metadata = create_metadata(arxiv_id, paper_title, total_pages)
         xmind_structure = self.structure_builder.add_metadata(
-            xmind_structure, metadata
+            xmind_structure, metadata,
         )
 
         if not self.structure_builder.validate_structure(xmind_structure):
@@ -151,7 +150,7 @@ class ArxivToXmind:
         xmind_structure = self.structure_builder.optimize_structure(xmind_structure)
 
         xmind_structure_path = os.path.join(
-            self.settings.data_dir, "xmind_structure.json"
+            self.settings.data_dir, "xmind_structure.json",
         )
         save_json(xmind_structure, xmind_structure_path)
 
@@ -172,8 +171,8 @@ class ArxivToXmind:
         return output_path
 
     async def batch_convert(
-        self, input_list: List[str], output_dir: Optional[str] = None
-    ) -> List[dict]:
+        self, input_list: list[str], output_dir: str | None = None,
+    ) -> list[dict]:
         """
         顺序处理多篇输入（非并行多 PDF），每篇内部仍有异步 API 并发。
 
@@ -191,7 +190,7 @@ class ArxivToXmind:
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
 
-        results: List[dict] = []
+        results: list[dict] = []
         tracker = ProgressTracker(len(input_list), "Batch conversion")
 
         for i, input_str in enumerate(input_list, 1):
@@ -202,12 +201,12 @@ class ArxivToXmind:
             try:
                 output_path = await self.convert(input_str)
                 results.append(
-                    {"input": input_str, "output": output_path, "status": "success"}
+                    {"input": input_str, "output": output_path, "status": "success"},
                 )
             except Exception as e:
                 print(f"Error processing {input_str}: {e}")
                 results.append(
-                    {"input": input_str, "error": str(e), "status": "failed"}
+                    {"input": input_str, "error": str(e), "status": "failed"},
                 )
 
             tracker.update()
@@ -215,7 +214,7 @@ class ArxivToXmind:
         tracker.finish()
 
         results_path = os.path.join(
-            output_dir or self.settings.output_dir, "batch_results.json"
+            output_dir or self.settings.output_dir, "batch_results.json",
         )
         save_json(results, results_path)
         return results
@@ -272,7 +271,7 @@ Examples:
 
     try:
         if args.batch:
-            with open(args.batch, "r", encoding="utf-8") as f:
+            with open(args.batch, encoding="utf-8") as f:
                 input_list = [line.strip() for line in f if line.strip()]
             asyncio.run(converter.batch_convert(input_list))
 

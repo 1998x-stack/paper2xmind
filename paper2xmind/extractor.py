@@ -9,7 +9,6 @@ PDF 文本提取模块 —— 基于 PyMuPDF（import 名为 fitz）按页读取
 - extract_text_from_pdf 在 save_txt=True 时会在 PDF 同目录（同主名）写出 .txt，便于人工检查抽取质量。
 """
 import os
-from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF：底层为 MuPDF，速度快、无 Java 依赖
 
@@ -34,8 +33,8 @@ class PDFExtractor:
         self.settings = settings or default_settings
 
     def extract_text_from_pdf(
-        self, pdf_path: str, save_txt: bool = True
-    ) -> Tuple[str, List[Dict[str, object]]]:
+        self, pdf_path: str, save_txt: bool = True,
+    ) -> tuple[str, list[dict[str, object]]]:
         """
         打开 PDF，逐页 get_text()，拼接全文并返回按页列表。
 
@@ -62,8 +61,8 @@ class PDFExtractor:
         print(f"Extracting text from: {pdf_path}")
 
         doc = fitz.open(pdf_path)
-        full_text: List[str] = []
-        pages_content: List[Dict[str, object]] = []
+        full_text: list[str] = []
+        pages_content: list[dict[str, object]] = []
 
         try:
             for page_num in range(len(doc)):
@@ -75,7 +74,7 @@ class PDFExtractor:
                     {
                         "page": page_num + 1,
                         "text": text,
-                    }
+                    },
                 )
                 full_text.append(f"--- Page {page_num + 1} ---\n{text}\n")
         finally:
@@ -84,7 +83,12 @@ class PDFExtractor:
         full_text_str = "\n".join(full_text)
 
         if save_txt:
-            txt_path = pdf_path.replace(".pdf", ".txt")
+            # Create safe txt path using os.path.splitext to avoid unsafe replacement
+            pdf_basename = os.path.basename(pdf_path)
+            txt_basename = os.path.splitext(pdf_basename)[0] + ".txt"
+            txt_dir = os.path.dirname(pdf_path)
+            txt_path = os.path.join(txt_dir, txt_basename)
+
             with open(txt_path, "w", encoding="utf-8") as f:
                 f.write(full_text_str)
             print(f"Text saved to: {txt_path}")
@@ -112,8 +116,8 @@ class PDFExtractor:
 
     @staticmethod
     def chunk_pages(
-        pages_content: List[Dict[str, object]], pages_per_chunk: int = 3
-    ) -> List[Dict[str, object]]:
+        pages_content: list[dict[str, object]], pages_per_chunk: int = 3,
+    ) -> list[dict[str, object]]:
         """
         将连续页面合并为多个文本块，每块包含至多 pages_per_chunk 页。
 
@@ -130,21 +134,21 @@ class PDFExtractor:
         Note:
             使用切片步长 pages_per_chunk 线性扫描，时间 O(页数)。
         """
-        chunks: List[Dict[str, object]] = []
+        chunks: list[dict[str, object]] = []
         for i in range(0, len(pages_content), pages_per_chunk):
             chunk_pages = pages_content[i : i + pages_per_chunk]
             chunk_text = "\n\n".join(
                 [
                     f"=== Page {p['page']} ===\n{p['text']}"
                     for p in chunk_pages
-                ]
+                ],
             )
             chunks.append(
                 {
                     "chunk_id": len(chunks) + 1,
                     "pages": [p["page"] for p in chunk_pages],
                     "text": chunk_text,
-                }
+                },
             )
 
         print(f"Created {len(chunks)} chunks from {len(pages_content)} pages")

@@ -1,11 +1,11 @@
 """Integration tests for the paper research platform."""
 
-import pytest
-from fastapi.testclient import TestClient
-from app.main import app
-from pathlib import Path
 import tempfile
-import json
+from pathlib import Path
+
+import pytest
+from app.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -63,7 +63,7 @@ def test_create_category():
 def test_chat_stream_endpoint_exists():
     """Test that chat stream endpoint exists (returns SSE stream)."""
     response = client.post(
-        "/api/papers/test123/chat/stream", json={"message": "test", "message_id": "1"}
+        "/api/papers/test123/chat/stream", json={"message": "test", "message_id": "1"},
     )
     # Returns 200 (SSE stream started) - endpoint exists and works
     assert response.status_code == 200

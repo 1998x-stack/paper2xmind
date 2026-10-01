@@ -2,6 +2,7 @@
 import json
 import os
 import zipfile
+
 import pytest
 
 from paper2xmind.config import Settings

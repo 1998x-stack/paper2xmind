@@ -1,11 +1,12 @@
 """BM25 search service for paper paragraphs."""
 
+import re
+from pathlib import Path
+from typing import Any
+
+import frontmatter
 import numpy as np
 from rank_bm25 import BM25Okapi
-from typing import List, Dict, Any
-from pathlib import Path
-import frontmatter
-import re
 
 
 class BM25Search:
@@ -23,7 +24,7 @@ class BM25Search:
         if not content_path.exists():
             return
 
-        with open(content_path, "r", encoding="utf-8") as f:
+        with open(content_path, encoding="utf-8") as f:
             post = frontmatter.load(f)
             self.title = post.metadata.get("title", "Unknown Paper")
 
@@ -39,7 +40,7 @@ class BM25Search:
             tokenized = [p["text"].split() for p in self.paragraphs]
             self.bm25 = BM25Okapi(tokenized)
 
-    def _extract_paragraphs(self, content: str) -> List[Dict[str, str]]:
+    def _extract_paragraphs(self, content: str) -> list[dict[str, str]]:
         paras = re.split(r"\n\n+", content)
         return [
             {"id": f"para_{i}", "text": p.strip()[:1000]}
@@ -47,7 +48,7 @@ class BM25Search:
             if len(p.strip()) > 50
         ]
 
-    def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+    def search(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
         if not self.paragraphs or not self.bm25:
             return []
 

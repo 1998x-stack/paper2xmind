@@ -1,14 +1,16 @@
 """Chat API endpoints with SSE streaming."""
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
 import json
 from datetime import datetime, timezone
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from openai import AsyncOpenAI
-from ..services.storage import StorageService
-from ..services.search import BM25Search
-from ..config import settings
-from ..models import ChatRequest
+
+from app.config import settings
+from app.models import ChatRequest
+from app.services.search import BM25Search
+from app.services.storage import StorageService
 
 router = APIRouter(prefix="/api/papers", tags=["chat"])
 storage = StorageService(settings.data_dir)
@@ -32,23 +34,35 @@ Answer concisely based on the context. If the answer isn't in the context, say s
 
 
 def build_prompt(
-    question: str, paragraphs: list, xmind_nodes: list, paper_title: str
+    question: str,
+    paragraphs: list,
+    xmind_nodes: list,
 ) -> str:
     para_text = "\n\n".join(
-        [f"[{i + 1}] {p['text']}" for i, p in enumerate(paragraphs)]
+        [f"[{i + 1}] {p['text']}" for i, p in enumerate(paragraphs)],
     )
     nodes_text = ", ".join(xmind_nodes) if xmind_nodes else "None"
 
     return RAG_PROMPT.format(
         paragraphs=para_text,
         xmind_nodes=nodes_text,
-        paper_title=paper_title,
         question=question,
     )
 
 
+def _validate_paper_exists(paper_id: str) -> bool:
+    """Validate that the paper exists before allowing access to its chat."""
+    # Check if paper directory exists
+    paper_path = storage.papers_dir / paper_id
+    return paper_path.exists()
+
+
 @router.post("/{paper_id}/chat/stream")
 async def chat_stream(paper_id: str, request: ChatRequest):
+    # Validate that paper exists before proceeding
+    if not _validate_paper_exists(paper_id):
+        raise HTTPException(status_code=404, detail="Paper not found")
+
     async def generate():
         try:
             search = BM25Search(paper_id, settings.data_dir)
@@ -58,7 +72,9 @@ async def chat_stream(paper_id: str, request: ChatRequest):
             yield f"data: {json.dumps({'type': 'context', 'paragraphs': paragraphs, 'xmind_nodes': xmind_nodes})}\n\n"
 
             prompt = build_prompt(
-                request.message, paragraphs, xmind_nodes, search.title
+                request.message,
+                paragraphs,
+                xmind_nodes,
             )
             message_id = f"assistant_{datetime.now(timezone.utc).timestamp()}"
             full_response = ""
@@ -80,7 +96,10 @@ async def chat_stream(paper_id: str, request: ChatRequest):
             yield f"data: {json.dumps({'type': 'done', 'message_id': message_id})}\n\n"
 
             await storage.save_chat_message(
-                paper_id, "user", request.message, request.message_id
+                paper_id,
+                "user",
+                request.message,
+                request.message_id,
             )
             await storage.save_chat_message(
                 paper_id,
@@ -93,13 +112,17 @@ async def chat_stream(paper_id: str, request: ChatRequest):
                 },
             )
 
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        except OSError as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': f'Internal server error: {e!s}'}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.get("/{paper_id}/chat")
 async def get_chat_history(paper_id: str):
+    # Validate that paper exists before proceeding
+    if not _validate_paper_exists(paper_id):
+        raise HTTPException(status_code=404, detail="Paper not found")
+
     messages = await storage.load_chat_history(paper_id)
     return {"paper_id": paper_id, "messages": messages}

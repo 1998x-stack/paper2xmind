@@ -1,31 +1,44 @@
 """Paper API endpoints."""
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from typing import Optional
+import os
 import shutil
 import uuid
-from ..services.storage import StorageService
-from ..services.xmind_parser import XMindParser
-from ..config import settings
+
+from fastapi import APIRouter, HTTPException, UploadFile
+
+from app.config import settings
+from app.services.storage import StorageService
+from app.services.xmind_parser import XMindParser
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
 storage = StorageService(settings.data_dir)
 
 
 @router.post("/upload")
-async def upload_paper(file: UploadFile = File(...)):
+async def upload_paper(file: UploadFile):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
+    # Sanitize filename to prevent path traversal
+    sanitized_filename = os.path.basename(file.filename)
+
+    # Validate file extension to ensure it's a PDF
+    if not sanitized_filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
     paper_id = str(uuid.uuid4())[:8]
-    upload_path = settings.uploads_dir / f"{paper_id}_{file.filename}"
+    upload_path = settings.uploads_dir / f"{paper_id}_{sanitized_filename}"
+
+    # Ensure the upload path is within the allowed directory
+    if not str(upload_path).startswith(str(settings.uploads_dir)):
+        raise HTTPException(status_code=400, detail="Invalid file path")
 
     with open(upload_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     return {
         "paper_id": paper_id,
-        "filename": file.filename,
+        "filename": sanitized_filename,
         "status": "uploaded",
         "message": "File uploaded successfully",
     }
@@ -78,7 +91,7 @@ async def list_papers():
                         "paper_id": paper_id,
                         "title": paper_data["metadata"].get("title", "Untitled"),
                         "created_at": paper_data["metadata"].get("created_at"),
-                    }
+                    },
                 )
 
     return {"papers": papers}

@@ -1,7 +1,8 @@
 """Pytest configuration and shared fixtures."""
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # Add project root to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))

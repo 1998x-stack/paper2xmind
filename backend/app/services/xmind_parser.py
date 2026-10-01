@@ -1,15 +1,15 @@
 """XMind file parser - extracts mind map structure from .xmind files."""
 
-import zipfile
 import json
-from pathlib import Path
-from typing import Optional, Dict, Any
 import tempfile
+import zipfile
+from pathlib import Path
+from typing import Any
 
 
 class XMindParser:
     @staticmethod
-    def parse_xmind_file(xmind_path: Path) -> Optional[Dict[str, Any]]:
+    def parse_xmind_file(xmind_path: Path) -> dict[str, Any] | None:
         if not xmind_path.exists():
             return None
 
@@ -26,14 +26,14 @@ class XMindParser:
                     if not content_json.exists():
                         return None
 
-                with open(content_json, "r", encoding="utf-8") as f:
+                with content_json.open(encoding="utf-8") as f:
                     return json.load(f)
 
-            except (zipfile.BadZipFile, json.JSONDecodeError, IOError):
+            except (zipfile.BadZipFile, json.JSONDecodeError, OSError):
                 return None
 
     @staticmethod
-    def convert_to_tree(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def convert_to_tree(data: dict[str, Any]) -> dict[str, Any] | None:
         if not data:
             return None
 
@@ -46,7 +46,7 @@ class XMindParser:
         if not root_topic:
             return None
 
-        def process_topic(topic: Dict[str, Any]) -> Dict[str, Any]:
+        def process_topic(topic: dict[str, Any]) -> dict[str, Any]:
             node = {
                 "id": topic.get("id", "unknown"),
                 "title": topic.get("title", "Untitled"),

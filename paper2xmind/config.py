@@ -51,30 +51,31 @@ class Settings:
     # --- API：与 OpenAI 官方 SDK 相同构造方式，仅 base_url / model 随服务商变化 ---
     api_key: str = field(
         default_factory=lambda: os.environ.get("DASHSCOPE_API_KEY")
-        or os.environ.get("OPENAI_API_KEY", "")
+        or os.environ.get("OPENAI_API_KEY", ""),
     )
     base_url: str = field(
         default_factory=lambda: os.environ.get(
             "OPENAI_BASE_URL",
             "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        )
+        ),
     )
     model: str = field(
-        default_factory=lambda: os.environ.get("OPENAI_MODEL", "qwen-plus")
+        default_factory=lambda: os.environ.get("OPENAI_MODEL", "qwen-plus"),
     )
 
     # --- 路径：相对路径相对于进程当前工作目录，CLI 一般在项目根执行 ---
     data_dir: str = field(default_factory=lambda: os.environ.get("DATA_DIR", "./data"))
     xmind_base_path: str = field(
-        default_factory=lambda: os.environ.get("XMIND_BASE_PATH", "./xmind_base")
+        default_factory=lambda: os.environ.get("XMIND_BASE_PATH", "./xmind_base"),
     )
     output_dir: str = field(
-        default_factory=lambda: os.environ.get("OUTPUT_DIR", "./output")
+        default_factory=lambda: os.environ.get("OUTPUT_DIR", "./output"),
     )
 
     # --- 处理策略：控制何时切块、每块多大 ---
     max_tokens_per_request: int = 16384
     pages_per_chunk: int = 3
+    max_concurrent: int = 5
 
     # --- ArXiv：ID 放入 {} 即可得到标准链接 ---
     arxiv_pdf_url_template: str = "https://arxiv.org/pdf/{}.pdf"

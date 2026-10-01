@@ -1,17 +1,18 @@
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel
 
 
 class PaperMetadata(BaseModel):
     paper_id: str
     title: str
-    authors: Optional[List[str]] = None
-    arxiv_id: Optional[str] = None
-    category: Optional[str] = None
-    pages: Optional[int] = None
+    authors: list[str] | None = None
+    arxiv_id: str | None = None
+    category: str | None = None
+    pages: int | None = None
     created_at: datetime
-    paragraphs: Optional[List[Dict[str, str]]] = None
+    paragraphs: list[dict[str, str]] | None = None
 
 
 class ChatMessage(BaseModel):
@@ -19,10 +20,10 @@ class ChatMessage(BaseModel):
     role: str
     content: str
     message_id: str
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 
 
 class ChatRequest(BaseModel):
     message: str
     message_id: str
-    selected_nodes: Optional[List[str]] = []
+    selected_nodes: list[str] | None = []

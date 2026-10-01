@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .api import papers, chat, categories
+
+from app.api import categories, chat, papers
 
 app = FastAPI(title="Paper Research Platform", version="0.1.0")
 
@@ -30,4 +31,4 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

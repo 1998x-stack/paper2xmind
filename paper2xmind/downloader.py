@@ -11,7 +11,6 @@ ArXiv 论文下载模块 —— 将用户输入解析为「本地 PDF 路径」�
 """
 import os
 import re
-from typing import Optional
 
 import requests
 
@@ -28,7 +27,7 @@ class ArxivDownloader:
         settings: 含 data_dir、arxiv_pdf_url_template 等，用于决定保存路径与下载 URL。
     """
 
-    def __init__(self, settings: Optional[object] = None) -> None:
+    def __init__(self, settings: object | None = None) -> None:
         """
         初始化下载器。
 
@@ -37,7 +36,7 @@ class ArxivDownloader:
         """
         self.settings = settings or default_settings
 
-    def extract_arxiv_id(self, input_str: str) -> Optional[str]:
+    def extract_arxiv_id(self, input_str: str) -> str | None:
         """
         从 URL 或纯字符串中解析 ArXiv 论文 ID（含可选版本后缀 vN）。
 
@@ -70,7 +69,7 @@ class ArxivDownloader:
 
         return None
 
-    def download_pdf(self, arxiv_id: str, save_path: Optional[str] = None) -> str:
+    def download_pdf(self, arxiv_id: str, save_path: str | None = None) -> str:
         """
         根据 ArXiv ID 下载 PDF 到本地并返回绝对/相对路径字符串（与传入 save_path 或默认规则一致）。
 
@@ -140,5 +139,5 @@ class ArxivDownloader:
             return self.download_pdf(arxiv_id)
 
         raise ValueError(
-            f"Invalid input: {input_str}. Must be ArXiv URL, ID, or PDF path."
+            f"Invalid input: {input_str}. Must be ArXiv URL, ID, or PDF path.",
         )

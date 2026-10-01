@@ -13,7 +13,7 @@ import io
 import json
 import os
 import zipfile
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from paper2xmind.config import settings as default_settings
 
@@ -32,11 +32,11 @@ def _read_json_file(json_file: str) -> object:
         json.JSONDecodeError: 内容非法时。
         OSError: 路径不存在或无法读取时。
     """
-    with open(json_file, "r", encoding="utf-8") as f:
+    with open(json_file, encoding="utf-8") as f:
         return json.loads(f.read())
 
 
-def _get_base_file_dict(base_path: str) -> Dict[str, bytes]:
+def _get_base_file_dict(base_path: str) -> dict[str, bytes]:
     """
     遍历 XMind 模板目录，收集除 content.json 外的所有文件为「ZIP 内相对路径 → bytes」。
 
@@ -49,7 +49,7 @@ def _get_base_file_dict(base_path: str) -> Dict[str, bytes]:
     Note:
         刻意跳过 content.json，因其由运行时根据论文结构重新生成，避免旧模板根主题覆盖新内容。
     """
-    res_dict: Dict[str, bytes] = {}
+    res_dict: dict[str, bytes] = {}
     for root, _dirs, files in os.walk(base_path):
         relative_root = "" if root == base_path else root.replace(base_path, "") + os.sep
         for filename in files:
@@ -79,7 +79,7 @@ class XMindGenerator:
         self.settings = settings or default_settings
         self.base_file_dict = _get_base_file_dict(self.settings.xmind_base_path)
 
-    def reset_temp_node(self, temp_node: Dict[str, Any], level: int = 0) -> Dict[str, Any]:
+    def reset_temp_node(self, temp_node: dict[str, Any], level: int = 0) -> dict[str, Any]:
         """
         将 StructureBuilder 产出的节点递归转换为 XMind content.json 中的 topic 节点形状。
 
@@ -101,7 +101,7 @@ class XMindGenerator:
         Note:
             递归深度与输入树一致；极深树可能导致性能或软件渲染问题，上游 optimize_structure 可缓解。
         """
-        new_node: Dict[str, Any] = {
+        new_node: dict[str, Any] = {
             "id": temp_node["node_id"],
             "title": temp_node["name"],
             "level": level,
@@ -123,7 +123,7 @@ class XMindGenerator:
 
         return new_node
 
-    def _zip_memory_files(self, json_data: List[Dict[str, Any]], output: str) -> None:
+    def _zip_memory_files(self, json_data: list[dict[str, Any]], output: str) -> None:
         """
         将模板文件副本与新的 content.json 一并写入 ZIP（DEFLATE 压缩）。
 
@@ -149,9 +149,9 @@ class XMindGenerator:
 
     def generate_xmind(
         self,
-        structure: Dict[str, Any],
+        structure: dict[str, Any],
         output_path: str,
-        relation_list: Union[List[Any], None] = None,
+        relation_list: list[Any] | None = None,
     ) -> str:
         """
         从中间结构生成完整 .xmind 文件。

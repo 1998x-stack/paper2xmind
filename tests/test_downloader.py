@@ -1,11 +1,11 @@
 """Unit tests for the ArXiv downloader module."""
 import os
-import tempfile
-import pytest
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
-from paper2xmind.downloader import ArxivDownloader
+import pytest
+
 from paper2xmind.config import Settings
+from paper2xmind.downloader import ArxivDownloader
 
 
 @pytest.fixture

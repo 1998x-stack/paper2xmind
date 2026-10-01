@@ -18,10 +18,10 @@ import json
 import os
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 
-def save_json(data: Dict[str, Any], filepath: str, indent: int = 2) -> None:
+def save_json(data: dict[str, Any], filepath: str, indent: int = 2) -> None:
     """
     将字典（或可 JSON 序列化的结构）写入 UTF-8 文本文件。
 
@@ -55,7 +55,7 @@ def load_json(filepath: str) -> Any:
     Raises:
         FileNotFoundError、json.JSONDecodeError 等。
     """
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -99,7 +99,7 @@ def timer(func: Any) -> Any:
     return sync_wrapper
 
 
-def format_timestamp(timestamp: Optional[float] = None) -> str:
+def format_timestamp(timestamp: float | None = None) -> str:
     """
     将 Unix 时间戳格式化为本地时间的可读字符串。
 
@@ -159,10 +159,10 @@ def get_file_size_mb(filepath: str) -> float:
 
 
 def create_metadata(
-    arxiv_id: Optional[str] = None,
-    paper_title: Optional[str] = None,
-    total_pages: Optional[int] = None,
-) -> Dict[str, Any]:
+    arxiv_id: str | None = None,
+    paper_title: str | None = None,
+    total_pages: int | None = None,
+) -> dict[str, Any]:
     """
     构造写入导图根节点 labels 的元信息字典。
 
@@ -177,7 +177,7 @@ def create_metadata(
     Note:
         generated_at、tool 为固定字段，标识生成时间与工具名。
     """
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "generated_at": format_timestamp(),
         "tool": "ArXiv to XMind Converter",
     }
@@ -218,7 +218,7 @@ def print_progress(current: int, total: int, prefix: str = "Progress") -> None:
 
 
 def estimate_processing_time(
-    total_pages: int, pages_per_chunk: int = 3
+    total_pages: int, pages_per_chunk: int = 3,
 ) -> str:
     """
     根据页数与每块页数，粗略估算 AI 分析阶段耗时（启发式，非 SLA）。

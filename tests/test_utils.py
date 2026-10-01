@@ -1,17 +1,21 @@
 """Unit tests for utility functions."""
 import asyncio
 import os
-import json
 import tempfile
-import time
+
 import pytest
 
 from paper2xmind.utils import (
-    save_json, load_json, timer, format_timestamp,
-    sanitize_filename, get_file_size_mb, create_metadata,
-    estimate_processing_time, ProgressTracker,
+    ProgressTracker,
+    create_metadata,
+    estimate_processing_time,
+    format_timestamp,
+    get_file_size_mb,
+    load_json,
+    sanitize_filename,
+    save_json,
+    timer,
 )
-
 
 # --- Critical fix: async timer ---
 

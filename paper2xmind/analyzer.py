@@ -15,7 +15,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -44,13 +44,13 @@ class ContentAnalyzer:
         prompt 正文为英文，因多数商用/开源模型对英文指令遵循更稳定；模块与类文档使用中文便于维护。
     """
 
-    def __init__(self, settings: Any = None, max_concurrent: int = 5) -> None:
+    def __init__(self, settings: Any = None, max_concurrent: int | None = None) -> None:
         """
         初始化分析器：创建异步客户端与并发信号量。
 
         Args:
             settings: 可选的 Settings 实例；为 None 时使用全局 default_settings。
-            max_concurrent: 同时进行的 analyze_content 调用上限，默认 5。根据 API 配额可调大或调小。
+            max_concurrent: 同时进行的 analyze_content 调用上限，默认使用 settings.max_concurrent。根据 API 配额可调大或调小。
 
         Note:
             AsyncOpenAI 在首次 await 请求时才会真正建立连接；构造阶段仅保存参数。
@@ -61,8 +61,12 @@ class ContentAnalyzer:
             base_url=self.settings.base_url,
         )
         self.model = self.settings.model
+
+        # Use provided max_concurrent, otherwise get from settings, default to 5
+        effective_max_concurrent = max_concurrent if max_concurrent is not None else getattr(self.settings, 'max_concurrent', 5)
+
         # 限制并发：避免 gather 一次性 N 个任务同时打满 API
-        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self.semaphore = asyncio.Semaphore(effective_max_concurrent)
 
     @staticmethod
     def _strip_markdown_fences(text: str) -> str:
@@ -185,7 +189,7 @@ Example format:
 }}
 """
 
-    async def analyze_content(self, content: str, is_partial: bool = False) -> Dict[str, Any]:
+    async def analyze_content(self, content: str, is_partial: bool = False) -> dict[str, Any]:
         """
         对单个文本块调用模型，解析得到一层层嵌套的 dict 树（根节点一个 dict）。
 
@@ -228,14 +232,14 @@ Example format:
             result_text = self._strip_markdown_fences(result_text)
             return json.loads(result_text)
 
-        except json.JSONDecodeError as e:
-            logger.error("JSON parsing error: %s", e)
+        except json.JSONDecodeError:
+            logger.exception("JSON parsing error:")
             return {"name": "Parse Error", "description": "Failed to parse structure", "children": []}
-        except Exception as e:
-            logger.error("Error analyzing content: %s", e)
-            return {"name": "Error", "description": str(e), "children": []}
+        except OSError:
+            logger.exception("Error analyzing content:")
+            return {"name": "Error", "description": "Connection or I/O error", "children": []}
 
-    async def _analyze_with_limit(self, content: str, is_partial: bool) -> Dict[str, Any]:
+    async def _analyze_with_limit(self, content: str, is_partial: bool) -> dict[str, Any]:
         """
         在信号量保护下执行 analyze_content，供 asyncio.gather 批量调度时使用。
 
@@ -249,7 +253,7 @@ Example format:
         async with self.semaphore:
             return await self.analyze_content(content, is_partial)
 
-    async def analyze_chunks(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    async def analyze_chunks(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         并发分析多个分块，并在每份结果上附加 chunk_id 与 pages，便于合并时追溯来源。
 
@@ -266,7 +270,7 @@ Example format:
         """
         tasks = [self._analyze_with_limit(chunk["text"], True) for chunk in chunks]
 
-        print(f"Analyzing {len(tasks)} chunks concurrently (max {self.semaphore._value})...")
+        logger.info("Analyzing %d chunks concurrently (max %d)...", len(tasks), self.semaphore._value)
         results = list(await asyncio.gather(*tasks))
 
         for i, result in enumerate(results):
@@ -277,9 +281,9 @@ Example format:
 
     async def merge_structures(
         self,
-        structures: List[Dict[str, Any]],
+        structures: list[dict[str, Any]],
         paper_title: str = "Academic Paper",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         将多块分析得到的「森林」交给模型合并为一棵连贯的树，根节点名使用给定论文标题。
 
@@ -336,8 +340,8 @@ Root node name should be: "{paper_title}"
             result_text = self._strip_markdown_fences(result_text)
             return json.loads(result_text)
 
-        except Exception as e:
-            logger.error("Error merging structures: %s", e)
+        except Exception:
+            logger.exception("Error merging structures:")
             return {
                 "name": paper_title,
                 "description": "Merged structure from multiple chunks",

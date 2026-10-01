@@ -1,6 +1,7 @@
 """Unit tests for the CLI module."""
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 
 from paper2xmind.config import Settings
 
@@ -12,8 +13,10 @@ def test_converter_initialization():
          patch('paper2xmind.cli.ContentAnalyzer'), \
          patch('paper2xmind.cli.StructureBuilder'), \
          patch('paper2xmind.cli.XMindGenerator'):
+        import os
+        import tempfile
+
         from paper2xmind.cli import ArxivToXmind
-        import tempfile, os
         with tempfile.TemporaryDirectory() as tmp:
             s = Settings(data_dir=os.path.join(tmp, "d"), output_dir=os.path.join(tmp, "o"))
             converter = ArxivToXmind(settings=s)
@@ -29,8 +32,10 @@ async def test_batch_convert_handles_failure():
          patch('paper2xmind.cli.ContentAnalyzer'), \
          patch('paper2xmind.cli.StructureBuilder'), \
          patch('paper2xmind.cli.XMindGenerator'):
+        import os
+        import tempfile
+
         from paper2xmind.cli import ArxivToXmind
-        import tempfile, os
         with tempfile.TemporaryDirectory() as tmp:
             s = Settings(data_dir=os.path.join(tmp, "d"), output_dir=os.path.join(tmp, "o"))
             converter = ArxivToXmind(settings=s)

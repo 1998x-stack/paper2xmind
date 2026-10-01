@@ -1,8 +1,8 @@
 """Unit tests for the content analyzer module."""
-import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
 import json
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from paper2xmind.config import Settings
 
@@ -53,8 +53,10 @@ async def test_analyze_content():
         mock_client = Mock()
         mock_cls.return_value = mock_client
 
+        import os
+        import tempfile
+
         from paper2xmind.analyzer import ContentAnalyzer
-        import tempfile, os
         with tempfile.TemporaryDirectory() as tmp:
             s = Settings(api_key="k", data_dir=os.path.join(tmp, "d"), output_dir=os.path.join(tmp, "o"))
             a = ContentAnalyzer(settings=s)
