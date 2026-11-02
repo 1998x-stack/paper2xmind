@@ -13,6 +13,7 @@ def test_job_create_dedup_and_events(tmp_path):
     repo.stage(a["id"], "EXTRACTING")
     repo.finish(a["id"], state="READY")
     assert repo.get(a["id"])["state"] == "READY"
+    assert repo.get(a["id"])["revision_id"]
     assert len(repo.events(a["id"])) >= 3
 
 

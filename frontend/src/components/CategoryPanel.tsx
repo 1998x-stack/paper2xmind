@@ -50,7 +50,7 @@ export const CategoryPanel: React.FC<{onSelectPaper: (id: string) => void}> = ({
         <button type="button" className="text-left p-2 w-full rounded hover:bg-gray-100 disabled:opacity-50"
           disabled={paper.status !== 'READY'} onClick={() => onSelectPaper(paper.paper_id)}>
           <span className="block text-sm font-medium break-words">{paper.title}</span>
-          <span className="text-xs text-gray-500">{paper.status.toLowerCase().replace(/_/g, ' ')}</span>
+          <span className="text-xs text-gray-500">{paper.status.toLowerCase().replace(/_/g, ' ')}{paper.error_code ? ' · ' + paper.error_code : ''}</span>
         </button>
       </li>)}
     </ul>

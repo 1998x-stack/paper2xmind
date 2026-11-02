@@ -1,5 +1,5 @@
 export interface Paper {
-  paper_id:string; title:string; created_at:string; status:string; job_id?:string
+  paper_id:string; title:string; created_at:string; status:string; job_id?:string; revision_id?:string; error_code?:string
 }
 export interface XMindNode {
   id:string; title:string; children:XMindNode[]; notes_text?:string; labels?:string[]

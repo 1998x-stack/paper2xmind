@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from paper2xmind.config import settings as core_settings
 import sqlite3
 import time
 import uuid
@@ -35,8 +36,16 @@ class JobRepository:
                     source_key TEXT NOT NULL UNIQUE, source_name TEXT NOT NULL,
                     created_at REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS revisions (
+                    id TEXT PRIMARY KEY,
+                    paper_id TEXT NOT NULL REFERENCES papers(id),
+                    source_sha256 TEXT, config_hash TEXT NOT NULL,
+                    status TEXT NOT NULL, created_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_revisions_paper ON revisions(paper_id);
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY, paper_id TEXT NOT NULL REFERENCES papers(id),
+                    revision_id TEXT REFERENCES revisions(id),
                     source TEXT NOT NULL, state TEXT NOT NULL, stage TEXT NOT NULL,
                     attempt INTEGER NOT NULL DEFAULT 0,
                     error_code TEXT, error_message TEXT,
@@ -46,6 +55,13 @@ class JobRepository:
                 );
                 CREATE INDEX IF NOT EXISTS idx_jobs_queue ON jobs(state, not_before);
                 CREATE INDEX IF NOT EXISTS idx_jobs_paper ON jobs(paper_id);
+                CREATE TABLE IF NOT EXISTS artifacts (
+                    id TEXT PRIMARY KEY,
+                    revision_id TEXT NOT NULL REFERENCES revisions(id),
+                    kind TEXT NOT NULL, sha256 TEXT NOT NULL,
+                    relative_path TEXT NOT NULL, created_at REAL NOT NULL,
+                    UNIQUE(revision_id, kind)
+                );
                 CREATE TABLE IF NOT EXISTS job_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT NOT NULL REFERENCES jobs(id),
@@ -53,6 +69,10 @@ class JobRepository:
                     message TEXT, created_at REAL NOT NULL
                 );
             """)
+            # A database created on an earlier V0.2 preview can be upgraded in place.
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
+            if "revision_id" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN revision_id TEXT REFERENCES revisions(id)")
 
     @staticmethod
     def _row(row):
@@ -72,13 +92,25 @@ class JobRepository:
                     (existing["id"],)
                 ).fetchone()
                 return self._row(job)
-            paper_id, job_id = uuid.uuid4().hex, uuid.uuid4().hex
+            paper_id, job_id, revision_id = (uuid.uuid4().hex for _ in range(3))
+            model_config = json.dumps({
+                "model": core_settings.model, "base_url": core_settings.base_url,
+                "chunk_pages": core_settings.pages_per_chunk,
+                "token_limit": core_settings.max_tokens_per_request,
+                "pipeline_version": "v0.2",
+            }, sort_keys=True)
+            config_hash = hashlib.sha256(model_config.encode("utf-8")).hexdigest()
+            source_sha = source_key[7:] if source_key.startswith("sha256:") else None
             db.execute("INSERT INTO papers VALUES (?,?,?,?,?)",
                        (paper_id, source_name, source_key, source_name, now))
+            db.execute("""INSERT INTO revisions
+                       (id,paper_id,source_sha256,config_hash,status,created_at)
+                       VALUES (?,?,?,?,?,?)""",
+                       (revision_id, paper_id, source_sha, config_hash, "QUEUED", now))
             db.execute("""INSERT INTO jobs
-                       (id,paper_id,source,state,stage,created_at,updated_at)
-                       VALUES (?,?,?,?,?,?,?)""",
-                       (job_id, paper_id, source, "QUEUED", "QUEUED", now, now))
+                       (id,paper_id,revision_id,source,state,stage,created_at,updated_at)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                       (job_id, paper_id, revision_id, source, "QUEUED", "QUEUED", now, now))
             self._event(db, job_id, "QUEUED", "QUEUED", "Paper accepted")
             return self._row(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 
@@ -96,7 +128,7 @@ class JobRepository:
     def get_paper(self, paper_id: str):
         with self._connect() as db:
             row = db.execute(
-                """SELECT p.*, j.id AS job_id,j.state AS status,j.stage
+                """SELECT p.*, j.id AS job_id,j.revision_id,j.state AS status,j.stage,j.error_code
                    FROM papers p JOIN jobs j ON j.paper_id=p.id
                    WHERE p.id=? ORDER BY j.created_at DESC LIMIT 1""",
                 (paper_id,),
@@ -107,7 +139,7 @@ class JobRepository:
         with self._connect() as db:
             return [self._row(row) for row in db.execute(
                 """SELECT p.id AS paper_id,p.title,p.created_at,
-                          j.id AS job_id,j.state AS status,j.stage
+                          j.id AS job_id,j.revision_id,j.state AS status,j.stage,j.error_code
                    FROM papers p JOIN jobs j ON j.paper_id=p.id
                    WHERE j.id=(SELECT id FROM jobs WHERE paper_id=p.id
                                ORDER BY created_at DESC LIMIT 1)
@@ -182,7 +214,46 @@ class JobRepository:
                    not_before=?,lease_until=0,updated_at=? WHERE id=?""",
                 (new_state, new_state, error_code, error_message, now + delay, now, job_id),
             )
+            db.execute(
+                "UPDATE revisions SET status=? WHERE id=(SELECT revision_id FROM jobs WHERE id=?)",
+                (new_state, job_id),
+            )
             self._event(db, job_id, new_state, new_state, error_code)
+
+    def update_title(self, paper_id: str, title: str):
+        with self._connect() as db:
+            db.execute("UPDATE papers SET title=? WHERE id=?", (title, paper_id))
+
+    def record_source_hash(self, job_id: str, sha256: str):
+        with self._connect() as db:
+            db.execute(
+                "UPDATE revisions SET source_sha256=? WHERE id=(SELECT revision_id FROM jobs WHERE id=?)",
+                (sha256, job_id),
+            )
+
+    def record_artifact(self, job_id: str, kind: str, path: Path, sha256: str):
+        if kind not in {"pdf", "xmind"}:
+            raise ValueError("Unsupported artifact kind")
+        relative = Path(path).resolve().relative_to(self.data_dir.resolve()).as_posix()
+        with self._connect() as db:
+            revision = db.execute("SELECT revision_id FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not revision or not revision["revision_id"]:
+                raise KeyError("Revision not found")
+            db.execute(
+                """INSERT INTO artifacts(id,revision_id,kind,sha256,relative_path,created_at)
+                   VALUES(?,?,?,?,?,?)
+                   ON CONFLICT(revision_id,kind) DO UPDATE SET
+                     sha256=excluded.sha256,relative_path=excluded.relative_path""",
+                (uuid.uuid4().hex, revision["revision_id"], kind, sha256, relative, time.time()),
+            )
+
+    def artifacts(self, job_id: str):
+        with self._connect() as db:
+            return [self._row(row) for row in db.execute(
+                """SELECT a.kind,a.sha256,a.relative_path FROM artifacts a
+                   JOIN jobs j ON j.revision_id=a.revision_id WHERE j.id=?""",
+                (job_id,),
+            ).fetchall()]
 
     def retry(self, job_id: str):
         now = time.time()
@@ -197,6 +268,10 @@ class JobRepository:
                 """UPDATE jobs SET state='QUEUED',stage='QUEUED',attempt=0,
                    error_code=NULL,error_message=NULL,not_before=0,updated_at=? WHERE id=?""",
                 (now, job_id),
+            )
+            db.execute(
+                "UPDATE revisions SET status='QUEUED' WHERE id=(SELECT revision_id FROM jobs WHERE id=?)",
+                (job_id,),
             )
             self._event(db, job_id, "QUEUED", "QUEUED", "Manual retry")
             return self._row(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
@@ -216,6 +291,10 @@ class JobRepository:
                 raise ValueError("Cannot cancel job in current state")
             db.execute("UPDATE jobs SET state=?,updated_at=? WHERE id=?",
                        (new_state, now, job_id))
+            db.execute(
+                "UPDATE revisions SET status=? WHERE id=(SELECT revision_id FROM jobs WHERE id=?)",
+                (new_state, job_id),
+            )
             self._event(db, job_id, new_state, row["stage"])
             return self._row(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 

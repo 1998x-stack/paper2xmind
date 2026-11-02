@@ -54,6 +54,9 @@ async def test_real_pdf_pipeline_ready(tmp_path):
     assert paper["metadata"]["title"] == "Offline Test Paper"
     assert (store.papers_dir / item["paper_id"] / "source.pdf").is_file()
     assert repo.events(item["id"])[-1]["state"] == "READY"
+    kinds = {artifact["kind"] for artifact in repo.artifacts(item["id"])}
+    assert kinds == {"pdf", "xmind"}
+    assert len(repo.get(item["id"])["revision_id"]) == 32
 
 
 @pytest.mark.asyncio

@@ -69,9 +69,17 @@ class PaperWorker:
             pdf_tmp = paper_dir / f"source.{job_id}.tmp"
             shutil.copyfile(source, pdf_tmp)
             os.replace(pdf_tmp, paper_dir / "source.pdf")
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
             await self.storage.save_paper_content(
                 paper_id, tree["title"], full_text,
-                metadata={"pages": len(_pages), "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()},
+                metadata={"pages": len(_pages), "source_sha256": digest},
+            )
+            self.repository.update_title(paper_id, tree["title"])
+            self.repository.record_source_hash(job_id, digest)
+            self.repository.record_artifact(job_id, "pdf", paper_dir / "source.pdf", digest)
+            self.repository.record_artifact(
+                job_id, "xmind", paper_dir / "mindmap.xmind",
+                hashlib.sha256((paper_dir / "mindmap.xmind").read_bytes()).hexdigest(),
             )
             self.repository.finish(job_id, state="READY")
         except JobCancelled:

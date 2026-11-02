@@ -42,6 +42,7 @@ def _response(item: dict) -> dict:
     return {
         "paper_id": item["paper_id"],
         "job_id": item["id"],
+        "revision_id": item["revision_id"],
         "status": item["state"].lower(),
         "links": {"job": f"/api/jobs/{item['id']}"},
     }
