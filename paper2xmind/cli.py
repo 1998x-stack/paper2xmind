@@ -92,6 +92,9 @@ class ArxivToXmind:
         print("\n[Step 2/5] Extracting text from PDF...")
         full_text, pages_content = self.pdf_extractor.extract_text_from_pdf(pdf_path)
 
+        if not pages_content or not full_text.strip() or all(not p["text"].strip() for p in pages_content):
+            raise ValueError("PARSER_EMPTY: PDF contains no extractable text")
+
         total_pages = len(pages_content)
         print(f"Total pages: {total_pages}")
 
@@ -145,9 +148,10 @@ class ArxivToXmind:
         )
 
         if not self.structure_builder.validate_structure(xmind_structure):
-            print("Warning: Structure validation failed")
+            raise ValueError("INVALID_STRUCTURE: failed XMind node validation")
 
-        xmind_structure = self.structure_builder.optimize_structure(xmind_structure)
+        # Preserve the full semantic tree; visual collapsing must not delete content.
+        # optimize_structure() is intentionally not applied to persisted artifacts.
 
         xmind_structure_path = os.path.join(
             self.settings.data_dir, "xmind_structure.json",
