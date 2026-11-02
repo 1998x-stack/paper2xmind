@@ -13,19 +13,27 @@ cases:
   - id: G02
     input: Chinese digital PDF
     expected: READY with Unicode text preserved
-    automated: false
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_unicode_xmind_output
+    limitation: Unicode output only; Chinese input extraction is not evaluated
   - id: G03
     input: Two-column scientific PDF
     expected: READY or parser-visible limitation
-    automated: false
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_two_column_text_ingestion
+    limitation: Column reading order not evaluated
   - id: G04
     input: Long multi-section paper exceeding model token budget
     expected: Chunk analysis followed by verified merge
-    automated: false
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_multi_chunk_merge
+    limitation: LLM and merge are mocked; no real model inference
   - id: G05
     input: Paper with figures/tables and mathematical symbols
     expected: No falsely attributed research claims
-    automated: false
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_pdf_with_table_and_diagram
+    limitation: Figures and tables are accepted; semantic fidelity not evaluated
   - id: G06
     input: Scanned PDF without extractable text
     expected: FAILED_TERMINAL with PARSER_EMPTY, no XMind
