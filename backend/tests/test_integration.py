@@ -43,9 +43,7 @@ def test_get_nonexistent_paper():
 def test_get_nonexistent_chat():
     """Test getting chat history for nonexistent paper."""
     response = client.get("/api/papers/nonexistent/chat")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["messages"] == []
+    assert response.status_code == 404
 
 
 def test_create_category():
@@ -65,9 +63,8 @@ def test_chat_stream_endpoint_exists():
     response = client.post(
         "/api/papers/test123/chat/stream", json={"message": "test", "message_id": "1"},
     )
-    # Returns 200 (SSE stream started) - endpoint exists and works
-    assert response.status_code == 200
-    assert "text/event-stream" in response.headers.get("content-type", "")
+    # A chat for an unknown paper is forbidden, not silently accepted.
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio
