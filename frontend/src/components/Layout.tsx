@@ -4,47 +4,21 @@ import { XMindViewer } from './XMindViewer'
 import { ChatPanel } from './ChatPanel'
 
 export const Layout: React.FC = () => {
-  const [selectedPaper, setSelectedPaper] = React.useState<string | null>(null)
-  const [chatOpen, setChatOpen] = React.useState(true)
-  const [selectedNode, setSelectedNode] = React.useState<string | null>(null)
-
-  return (
-    <div className="flex h-screen bg-gray-50">
-      <div className="w-64 bg-white border-r border-gray-200">
-        <CategoryPanel onSelectPaper={setSelectedPaper} />
-      </div>
-
-      <div className="flex-1 bg-white">
-        {selectedPaper ? (
-          <XMindViewer
-            paperId={selectedPaper}
-            selectedNodeId={selectedNode}
-            onNodeSelect={setSelectedNode}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            Select a paper to view its mind map
-          </div>
-        )}
-      </div>
-
-      {chatOpen && (
-        <div className="w-96 bg-white border-l border-gray-200">
-          <ChatPanel
-            paperId={selectedPaper}
-            onClose={() => setChatOpen(false)}
-          />
-        </div>
-      )}
-
-      {!chatOpen && (
-        <button
-          onClick={() => setChatOpen(true)}
-          className="fixed right-4 bottom-4 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600"
-        >
-          Chat
-        </button>
-      )}
-    </div>
-  )
+  const [paper, setPaper] = React.useState<string | null>(null)
+  const [node, setNode] = React.useState<string | null>(null)
+  const [showChat, setShowChat] = React.useState(true)
+  const selectPaper = (id: string) => { setPaper(id); setNode(null) }
+  return <div className="flex h-screen bg-gray-50">
+    <aside className="w-72 border-r bg-white overflow-auto">
+      <CategoryPanel onSelectPaper={selectPaper} />
+    </aside>
+    <main className="flex-1 min-w-0 bg-white">
+      {paper ? <XMindViewer paperId={paper} selectedNodeId={node} onNodeSelect={setNode} /> :
+       <p className="p-6 text-gray-500">Upload or select a ready paper.</p>}
+    </main>
+    {showChat ? <aside className="w-96 border-l bg-white">
+      <ChatPanel paperId={paper} selectedNodeId={node} onClose={() => setShowChat(false)} />
+    </aside> : <button className="fixed right-4 bottom-4 bg-blue-500 text-white p-3 rounded"
+      onClick={() => setShowChat(true)}>Chat</button>}
+  </div>
 }
