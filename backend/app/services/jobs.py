@@ -199,7 +199,7 @@ class JobRepository:
                 (now, job_id),
             )
             self._event(db, job_id, "QUEUED", "QUEUED", "Manual retry")
-            return self.get(job_id)
+            return self._row(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 
     def cancel(self, job_id: str):
         now = time.time()

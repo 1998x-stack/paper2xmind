@@ -1,6 +1,9 @@
 """Chat API endpoints with SSE streaming."""
 
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
@@ -14,10 +17,11 @@ from app.services.storage import StorageService
 
 router = APIRouter(prefix="/api/papers", tags=["chat"])
 storage = StorageService(settings.data_dir)
-openai_client = AsyncOpenAI(
-    api_key=settings.openai_api_key,
-    base_url=settings.openai_base_url,
-)
+def _openai_client() -> AsyncOpenAI:
+    """Defer credential validation until an actual chat request."""
+    if not settings.openai_api_key:
+        raise RuntimeError("LLM_API_KEY_MISSING")
+    return AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
 
 RAG_PROMPT = """You are a research assistant. Answer based on the context provided.
 
@@ -79,7 +83,7 @@ async def chat_stream(paper_id: str, request: ChatRequest):
             message_id = f"assistant_{datetime.now(timezone.utc).timestamp()}"
             full_response = ""
 
-            stream = await openai_client.chat.completions.create(
+            stream = await _openai_client().chat.completions.create(
                 model=settings.model,
                 messages=[{"role": "user", "content": prompt}],
                 stream=True,
@@ -112,8 +116,9 @@ async def chat_stream(paper_id: str, request: ChatRequest):
                 },
             )
 
-        except OSError as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': f'Internal server error: {e!s}'}, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            logger.exception("Chat stream failed for paper %s", paper_id)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Chat service failed: ' + type(exc).__name__}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

@@ -92,8 +92,7 @@ async def upload_paper(file: UploadFile):
         return _response(job)
     except BaseException:
         # Never leave partial uploads after rejection or disconnect.
-        if destination.exists() and destination.stat().st_size != total:
-            destination.unlink(missing_ok=True)
+        destination.unlink(missing_ok=True)
         raise
     finally:
         await file.close()

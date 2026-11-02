@@ -17,7 +17,7 @@ import json
 import logging
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIConnectionError, APITimeoutError, RateLimitError
 
 from paper2xmind.config import settings as default_settings
 
@@ -263,7 +263,7 @@ Example format:
         except (json.JSONDecodeError, ValueError, TypeError) as exc:
             logger.exception("Invalid LLM structure")
             raise PaperAnalysisError("LLM_BAD_JSON", "Model response is not a valid paper tree") from exc
-        except OSError as exc:
+        except (OSError, APIConnectionError, APITimeoutError, RateLimitError) as exc:
             logger.exception("LLM connection or I/O error")
             raise PaperAnalysisError("LLM_IO_ERROR", "Model request failed") from exc
 
