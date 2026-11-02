@@ -50,6 +50,7 @@ async def test_invalid_llm_response_is_a_failure(tmp_path: Path):
     settings = Settings(api_key="fake", data_dir=str(tmp_path/"data"), output_dir=str(tmp_path/"out"))
     with patch("paper2xmind.analyzer.AsyncOpenAI") as factory:
         response = Mock()
+        response.choices = [Mock()]
         response.choices[0].message.content = "not json"
         factory.return_value.chat.completions.create = AsyncMock(return_value=response)
         analyzer = ContentAnalyzer(settings=settings)
