@@ -277,3 +277,14 @@ def test_offline_cli_consumes_routed_document_and_writes_json_atomically(tmp_pat
                             capture_output=True, text=True)
     assert failed.returncode != 0
     assert not (tmp_path / "artifacts" / "should_not_exist.json").exists()
+
+
+
+def test_invalid_gold_quote_fails_closed_not_excluded_from_denominator():
+    doc = make_document([("Research data must be source matched.", "paragraph", None, 0)])
+    result = chunk(doc)
+    bad = GoldSpan(block_id="b0000", start_cp=0, end_cp=8, quote="Injected")
+    with pytest.raises(ChunkingError, match="GOLD_SOURCE_SPAN_INVALID"):
+        evaluate_gold_spans(doc, result, [bad])
+    with pytest.raises(ValidationError, match="GOLD_SPAN_INVALID"):
+        GoldSpan(block_id="b0000", start_cp=8, end_cp=2, quote="test")

@@ -9,7 +9,7 @@ import hashlib
 from collections import defaultdict
 from typing import Iterable
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from paper2xmind.domain.document_ir import DocumentIR, DomainModel
 from .budget import BudgetCounter, Utf8ByteCounter
@@ -34,6 +34,12 @@ class GoldSpan(DomainModel):
     start_cp: int = Field(ge=0)
     end_cp: int = Field(gt=0)
     quote: str = Field(min_length=1, max_length=20000)
+
+    @model_validator(mode="after")
+    def require_nonempty_interval(self) -> "GoldSpan":
+        if self.end_cp <= self.start_cp:
+            raise ValueError("GOLD_SPAN_INVALID")
+        return self
 
 
 class GoldSpanReport(DomainModel):
@@ -175,7 +181,8 @@ def evaluate_gold_spans(
         source = indexed.get(ann.block_id)
         if (source is None or ann.end_cp > len(source.normalized_text)
                 or source.normalized_text[ann.start_cp:ann.end_cp] != ann.quote):
-            continue
+            raise ChunkingError("GOLD_SOURCE_SPAN_INVALID",
+                                "Gold quotation does not match canonical DocumentIR")
         valid += 1
         primary = any(_gold_in_chunk(c, ann, include_context=False)
                       for c in manifest.chunks)
