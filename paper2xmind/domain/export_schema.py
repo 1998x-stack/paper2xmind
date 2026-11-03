@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-from .claims import Claim, MindNode, SupportAssessment
+from .claims import Claim, ClaimCandidate, MindNode, SupportAssessment
 from .document_ir import DocumentIR
 from .evidence import EvidenceCandidate, EvidenceRef
 
@@ -19,6 +19,7 @@ SCHEMAS = {
     "evidence_candidate_v1": EvidenceCandidate,
     "evidence_ref_v1": EvidenceRef,
     "claim_v1": Claim,
+    "claim_candidate_v1": ClaimCandidate,
     "mind_node_v1": MindNode,
     "support_assessment_v1": SupportAssessment,
 }

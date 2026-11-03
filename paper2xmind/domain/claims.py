@@ -1,11 +1,12 @@
 """Canonical scientific claims and mind-map nodes; no model-generated proof flags."""
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Sequence
 
 from pydantic import Field, field_validator, model_validator
 
-from .document_ir import DomainModel
+from .document_ir import DomainModel, DocumentIR, _valid_revision
+from .evidence import EvidenceCandidate, EvidenceRef, DomainValidationError, validate_evidence_spans
 
 ClaimKind = Literal[
     "research_question", "method", "experimental_result", "numeric_result",
@@ -100,3 +101,54 @@ class MindNode(DomainModel):
 
 
 MindNode.model_rebuild()
+
+
+class ClaimCandidate(DomainModel):
+    """Untrusted LLM extraction: no verdict, assessment or valid anchor flag."""
+    candidate_id: str = Field(min_length=1, max_length=128)
+    revision_id: str
+    kind: ClaimKind
+    assertion: str = Field(min_length=1, max_length=20000)
+    origin_type: OriginType
+    core_claim: bool = False
+    evidence_candidates: tuple[EvidenceCandidate, ...] = Field(default_factory=tuple, max_length=100)
+    abstain_reason: str | None = Field(default=None, min_length=1, max_length=1000)
+
+    @field_validator("revision_id")
+    @classmethod
+    def check_revision(cls, value: str) -> str:
+        return _valid_revision(value)
+
+    @model_validator(mode="after")
+    def check_sources(self) -> "ClaimCandidate":
+        if any(ref.revision_id != self.revision_id for ref in self.evidence_candidates):
+            raise ValueError("CLAIM_CANDIDATE_REVISION_MISMATCH")
+        if not self.evidence_candidates and not self.abstain_reason:
+            raise ValueError("CLAIM_ABSTAIN_REASON_REQUIRED")
+        return self
+
+
+def promote_claim_candidate(
+    document: DocumentIR, candidate: ClaimCandidate, refs: Sequence[EvidenceRef],
+) -> Claim:
+    """Create an UNVERIFIED/CANDIDATE claim, never a supported verdict.
+
+    The trusted resolver must first produce exact references. This pure
+    function refuses unrelated evidence. Support review is a later step.
+    """
+    if document.revision_id != candidate.revision_id:
+        raise DomainValidationError("REVISION_MISMATCH", "Candidate belongs to another revision")
+    validate_evidence_spans(document, refs)
+    candidates = {(item.block_id, item.quote) for item in candidate.evidence_candidates}
+    if any((ref.block_id, ref.quote) not in candidates for ref in refs):
+        raise DomainValidationError("CANDIDATE_EVIDENCE_MISMATCH", "Anchor not supplied by candidate")
+    return Claim(
+        claim_id=candidate.candidate_id,
+        kind=candidate.kind,
+        assertion=candidate.assertion,
+        origin_type=candidate.origin_type,
+        core_claim=candidate.core_claim,
+        evidence_ids=tuple(ref.evidence_id for ref in refs),
+        support_status="candidate" if refs else "unverified",
+        assessment=None,
+    )

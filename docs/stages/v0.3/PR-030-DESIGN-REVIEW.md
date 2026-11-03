@@ -76,3 +76,15 @@ V0.2 XMind 文件格式。只有后续 PR-031（PDF Block Parser）和 PR-034/03
 
 下一模块：PR-031 PyMuPDF Block Parser，包括可复核页码与 bbox、旋转/CropBox
 标准化、文本阅读顺序与合成 PDF 黄金测试。
+
+
+## 补充安全边界：ClaimCandidate 与审核态隔离
+
+进一步审查发现，若 LLM 可以直接填 Claim.support_status，
+即使 EvidenceCandidate 已分离，也可通过伪造 human/independent_model
+审核记录冒充受信 Claim。PR-030 补充严格的 ClaimCandidate：
+不接受 support_status 和 assessment 等字段；
+必须提供来源候选或明确的 abstain_reason。
+promote_claim_candidate 仅输出 candidate/unverified，
+禁止在此阶段变成 supported。真正的审核身份校验、
+数据库写入授权和独立语义评估由 PR-035/036 承担。

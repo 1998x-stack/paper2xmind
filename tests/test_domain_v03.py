@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from paper2xmind.domain import (
-    Claim, DocumentIR, DomainValidationError, EvidenceCandidate, EvidenceRef,
+    Claim, ClaimCandidate, promote_claim_candidate, DocumentIR, DomainValidationError, EvidenceCandidate, EvidenceRef,
     MindNode, SupportAssessment, adapt_legacy_tree, canonical_serialize,
     canonical_sha256, normalize_text_v1, resolve_evidence_candidate,
     validate_document_references, validate_evidence_spans,
@@ -221,7 +221,7 @@ def test_schema_export_and_untyped_serialization_rejected(tmp_path):
                               "notes_text": "Unverified", "children": []}, REV)
     assert node.summary == "Unverified"
     paths = export_schemas(tmp_path)
-    assert len(paths) == len(SCHEMAS) == 6
+    assert len(paths) == len(SCHEMAS) == 7
     for path in paths:
         schema = json.loads(path.read_text(encoding="utf-8"))
         # Recursive MindNode exports a legal top-level $ref to $defs.
@@ -233,3 +233,28 @@ def test_schema_export_and_untyped_serialization_rejected(tmp_path):
         assert actual["additionalProperties"] is False
     with pytest.raises(TypeError):
         canonical_serialize({"raw": "dict"})
+
+
+def test_untrusted_claim_candidate_cannot_self_attest_verified():
+    with pytest.raises(ValidationError):
+        ClaimCandidate(candidate_id="c1", revision_id=REV, kind="numeric_result",
+            assertion="F1 improves", origin_type="author_result",
+            evidence_candidates=(proposal(),), support_status="supported")
+    with pytest.raises(ValidationError, match="CLAIM_ABSTAIN_REASON_REQUIRED"):
+        ClaimCandidate(candidate_id="c1", revision_id=REV, kind="other",
+            assertion="Claim without sources", origin_type="unknown")
+    doc = make_doc()
+    original = proposal()
+    raw = ClaimCandidate(candidate_id="c1", revision_id=REV, kind="numeric_result",
+        assertion="F1 improves", origin_type="author_result",
+        evidence_candidates=(original,), core_claim=True)
+    anchor = resolve_evidence_candidate(doc, original)
+    claim = promote_claim_candidate(doc, raw, [anchor])
+    assert claim.support_status == "candidate"
+    assert claim.assessment is None
+    assert claim.evidence_ids == (anchor.evidence_id,)
+    without_evidence = promote_claim_candidate(doc, raw, [])
+    assert without_evidence.support_status == "unverified"
+    with pytest.raises(DomainValidationError, match="CANDIDATE_EVIDENCE_MISMATCH"):
+        unrelated = resolve_evidence_candidate(doc, proposal("Résumé"))
+        promote_claim_candidate(doc, raw, [unrelated])

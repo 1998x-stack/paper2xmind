@@ -8,7 +8,7 @@ from .evidence import (
     DomainValidationError, EvidenceCandidate, EvidenceRef, ResolvedAnchor,
     resolve_evidence_candidate, validate_evidence_spans,
 )
-from .claims import Claim, SupportAssessment, MindNode
+from .claims import Claim, ClaimCandidate, promote_claim_candidate, SupportAssessment, MindNode
 from .validation import (
     KnowledgeValidationReport, validate_document_references,
     validate_knowledge_references, canonical_serialize, canonical_sha256,
@@ -20,7 +20,7 @@ __all__ = [
     "DocumentBlock", "DocumentSection", "DocumentProvenance", "ExtractionInfo",
     "normalize_text_v1", "DomainValidationError", "EvidenceCandidate",
     "EvidenceRef", "ResolvedAnchor", "resolve_evidence_candidate",
-    "validate_evidence_spans", "Claim", "SupportAssessment", "MindNode",
+    "validate_evidence_spans", "Claim", "ClaimCandidate", "promote_claim_candidate", "SupportAssessment", "MindNode",
     "KnowledgeValidationReport", "validate_document_references",
     "validate_knowledge_references", "canonical_serialize",
     "canonical_sha256", "adapt_legacy_tree",
