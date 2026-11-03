@@ -41,69 +41,11 @@ def apply_signed_reviews(
     counter: BudgetCounter | None = None,
     now: datetime | None = None,
 ) -> ReviewOutcome:
-    """Construct reviewed claims after checking trust and provenance."""
+    """Fail closed on upstream provenance; never call an LLM to award status."""
     _validate_inputs(document, manifest, ledger, analysis, counter=counter)
-    expected_ledger_sha = canonical_sha256(ledger)
-    expected_analysis_sha = canonical_sha256(analysis)
-    claims = {c.claim_id: c for c in ledger.claims}
-    prohibiting = {
-        signal.claim_id for signal in analysis.signals
-        if signal.severity == "block"
-    }
-    for conflict in analysis.potential_conflicts:
-        prohibiting.update((conflict.left_claim_id, conflict.right_claim_id))
-    decisions: dict[str, SignedReview] = {}
-    used_nonces: set[tuple[str, str]] = set()
-    for signed in signed_reviews:
-        authority.verify(signed, now=now)
-        env = signed.envelope
-        claim = claims.get(env.claim_id)
-        if claim is None:
-            raise ReviewError("REVIEW_CLAIM_UNKNOWN", "Reviewed claim does not exist")
-        if (env.pdf_sha256 != document.pdf_sha256
-                or env.ledger_sha256 != expected_ledger_sha
-                or env.analysis_sha256 != expected_analysis_sha
-                or env.claim_sha256 != canonical_sha256(claim)):
-            raise ReviewError("REVIEW_BINDING_MISMATCH", "Signed review has stale/foreign source")
-        if set(env.evidence_ids) != set(claim.evidence_ids):
-            raise ReviewError("REVIEW_EVIDENCE_SET_MISMATCH", "Reviewer omitted/changed citations")
-        if env.reviewer_id == ledger.model_id:
-            raise ReviewError("MODEL_CANNOT_REVIEW_ITSELF", "Extractor model identity cannot review")
-        if claim.claim_id in decisions:
-            raise ReviewError("REVIEW_DUPLICATE_CLAIM", "Conflicting or repeated review")
-        if (env.reviewer_id, env.nonce) in used_nonces:
-            raise ReviewError("REVIEW_NONCE_REPLAY", "Repeated reviewer nonce")
-        if env.verdict == "supported" and env.claim_id in prohibiting:
-            raise ReviewError("REVIEW_SUPPORTED_BLOCKED",
-                              "Unresolved numeric/unit discrepancy or conflict")
-        used_nonces.add((env.reviewer_id, env.nonce))
-        decisions[claim.claim_id] = signed
-
-    reviewed: list[Claim] = []
-    for claim in sorted(ledger.claims, key=lambda x: x.claim_id):
-        decision = decisions.get(claim.claim_id)
-        if decision is None:
-            reviewed.append(claim)
-            continue
-        env = decision.envelope
-        assessment = SupportAssessment(
-            decision=env.verdict, method="human",
-            evaluator_id=env.reviewer_id,
-            policy_version=POLICY_VERSION,
-            evidence_ids=env.evidence_ids,
-            rationale=env.rationale,
-        )
-        reviewed.append(claim.model_copy(update={
-            "support_status": env.verdict, "assessment": assessment,
-        }))
-
-    outcome = ReviewOutcome(
-        revision_id=document.revision_id, pdf_sha256=document.pdf_sha256,
-        ledger_sha256=expected_ledger_sha,
-        analysis_sha256=expected_analysis_sha,
-        claims=tuple(reviewed),
-        decisions=tuple(decisions[k] for k in sorted(decisions)),
-        outstanding_claim_ids=tuple(sorted(set(claims) - set(decisions))),
+    outcome = apply_signed_reviews_no_validate(
+        document, manifest, ledger, analysis, signed_reviews,
+        authority=authority, now=now,
     )
     validate_review_outcome(document, manifest, ledger, analysis, outcome,
                             authority=authority, counter=counter, now=now)
