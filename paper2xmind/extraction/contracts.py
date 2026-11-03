@@ -50,7 +50,7 @@ class RawClaimProposal(DomainModel):
 
 
 class RawExtractionResponse(DomainModel):
-    schema_version: Literal["claim_candidates/1.0.0"] = RAW_SCHEMA_VERSION
+    schema_version: Literal["claim_candidates/1.0.0"]
     claims: tuple[RawClaimProposal, ...] = Field(max_length=100)
     abstain_reason: str | None = Field(default=None, min_length=1, max_length=500)
 
@@ -70,7 +70,7 @@ class ExtractionConfig(DomainModel):
     max_chunks: int = Field(default=5000, ge=1, le=50000)
     max_evidence_per_claim: int = Field(default=6, ge=1, le=8)
     invalid_candidate_policy: Literal["reject_candidate", "fail_chunk"] = "reject_candidate"
-    require_primary_evidence: bool = True
+    require_primary_evidence: Literal[True] = True
 
 
 class ModelRequest(DomainModel):
@@ -80,7 +80,7 @@ class ModelRequest(DomainModel):
     prompt_version: str = Field(min_length=1, max_length=64)
     system_prompt: str = Field(min_length=50, max_length=10000)
     user_prompt: str = Field(min_length=10)
-    source_sha256: str
+    source_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
 
     @classmethod
     def from_data(cls, **data):
@@ -130,6 +130,7 @@ class ClaimExtractionLedger(DomainModel):
     pdf_sha256: str
     chunk_config_sha256: str
     extraction_config_sha256: str
+    extraction_config: ExtractionConfig
     model_id: str = Field(min_length=1, max_length=128)
     prompt_version: str = Field(min_length=1, max_length=64)
     prompt_sha256: str

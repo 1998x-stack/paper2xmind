@@ -278,6 +278,7 @@ class GroundedClaimExtractor:
             revision_id=document.revision_id, pdf_sha256=document.pdf_sha256,
             chunk_config_sha256=manifest.config_sha256,
             extraction_config_sha256=config_hash,
+            extraction_config=self.config,
             model_id=self.model.model_id,
             prompt_version=PROMPT_VERSION,
             prompt_sha256=prompt_sha256(),

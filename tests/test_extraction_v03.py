@@ -354,3 +354,25 @@ def test_empty_document_yields_abstention_without_calling_model():
     ledger = GroundedClaimExtractor(spy).extract(doc, manifest)
     assert ledger.status == "abstained" and ledger.per_chunk == ()
     assert spy.called == 0
+
+
+
+def test_ledger_config_snapshot_is_independently_auditable():
+    doc, manifest = fixture_doc()
+    ledger = extract(doc, manifest, {
+        manifest.chunks[0].chunk_id: response(propose([cite(doc)])),
+    })
+    assert ledger.extraction_config.max_candidates_per_chunk == 12
+    forged = ledger.model_copy(update={"extraction_config_sha256": "0" * 64})
+    with pytest.raises(ClaimExtractionError, match="LEDGER_CONFIG_FINGERPRINT_INVALID"):
+        validate_extraction_ledger(doc, manifest, forged)
+    modified_config = ledger.extraction_config.model_copy(
+        update={"max_candidates_per_chunk": 2})
+    modified = ledger.model_copy(update={"extraction_config": modified_config})
+    with pytest.raises(ClaimExtractionError, match="LEDGER_CONFIG_FINGERPRINT_INVALID"):
+        validate_extraction_ledger(doc, manifest, modified)
+
+
+def test_primary_source_guard_cannot_be_disabled_via_config():
+    with pytest.raises(ValidationError):
+        ExtractionConfig(require_primary_evidence=False)

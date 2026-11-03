@@ -16,6 +16,7 @@ from pydantic import Field
 
 from paper2xmind.chunking import BudgetCounter, ChunkManifest, validate_chunk_manifest
 from paper2xmind.domain import DocumentIR
+from paper2xmind.domain.validation import canonical_serialize
 from paper2xmind.domain.document_ir import DomainModel
 from paper2xmind.domain.evidence import validate_evidence_spans
 from .contracts import (
@@ -73,11 +74,32 @@ def validate_extraction_ledger(
     if (ledger.prompt_version != PROMPT_VERSION
             or ledger.prompt_sha256 != prompt_sha256()):
         raise ClaimExtractionError("LEDGER_PROMPT_MISMATCH", "Prompt contract does not match")
+    # Recompute the producer's effective config fingerprint from the
+    # persisted config, model and prompt identity. Hash-only provenance
+    # cannot be independently audited.
+    expected_config_hash = hashlib.sha256(
+        canonical_serialize(ledger.extraction_config)
+        + ledger.model_id.encode("utf-8")
+        + ledger.prompt_sha256.encode("ascii")
+    ).hexdigest()
+    if ledger.extraction_config_sha256 != expected_config_hash:
+        raise ClaimExtractionError("LEDGER_CONFIG_FINGERPRINT_INVALID",
+                                   "Extraction configuration was altered")
+    if len(manifest.chunks) > ledger.extraction_config.max_chunks:
+        raise ClaimExtractionError("LEDGER_CHUNK_LIMIT", "Too many extracted chunks")
+    if (ledger.rejected and
+            ledger.extraction_config.invalid_candidate_policy == "fail_chunk"):
+        raise ClaimExtractionError("LEDGER_STRICT_REJECTION",
+                                   "Strict extractor cannot publish rejected candidates")
     if len(ledger.per_chunk) != len(manifest.chunks):
         raise ClaimExtractionError("LEDGER_CHUNK_COVERAGE", "Missing chunk extraction records")
     if [r.chunk_id for r in ledger.per_chunk] != [c.chunk_id for c in manifest.chunks]:
         raise ClaimExtractionError("LEDGER_CHUNK_ORDER", "Extraction records differ from input chunks")
     for r in ledger.per_chunk:
+        if (r.proposal_count > ledger.extraction_config.max_candidates_per_chunk
+                or r.proposal_count > 100):
+            raise ClaimExtractionError("LEDGER_TOO_MANY_PROPOSALS",
+                                       "Per-chunk candidate count exceeds policy")
         if not re.fullmatch(r"[a-f0-9]{64}", r.response_sha256):
             raise ClaimExtractionError("LEDGER_RESPONSE_HASH_INVALID", "Invalid response digest")
 
