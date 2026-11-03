@@ -1,0 +1,59 @@
+# PR-031 offline/fixture golden scenarios
+# "automated" tests engineering invariants; never claim scientific evidence accuracy.
+
+cases:
+  - id: P031-01
+    input: Digital native-text PDF with heading
+    expected: Valid DocumentIR, candidate heading and provenance hashes
+    automated: true
+    test: tests/test_parser_v03.py::test_digital_pdf_valid_document_and_provenance
+  - id: P031-02
+    input: Source-interleaved two-column PDF
+    expected: Column-first reading order
+    automated: true
+    test: tests/test_parser_v03.py::test_two_column_interleaved_source_is_reconstructed
+  - id: P031-03
+    input: Separate columns in a single PyMuPDF raw line
+    expected: Split spans by plausible center gutter
+    automated: true
+    test: tests/test_parser_v03.py::test_raw_two_column_span_same_line_is_split
+  - id: P031-04
+    input: Rotation 0, 90, 180, 270
+    expected: Coordinates match display page transformation
+    automated: true
+    test: tests/test_parser_v03.py::test_rotated_page_display_geometry
+  - id: P031-05
+    input: CropBox with display rotation
+    expected: Display bounding boxes remain page-local and valid
+    automated: true
+    test: tests/test_parser_v03.py::test_cropbox_and_rotation_are_normalized
+  - id: P031-06
+    input: Out-of-viewport text block
+    expected: Reject false localization, not fabricate bbox
+    automated: true
+    test: tests/test_parser_v03.py::test_partial_or_out_of_viewport_bounds_never_exported
+  - id: P031-07
+    input: Blank or image-only PDF
+    expected: Empty blocks and explicit diagnostics
+    automated: true
+    test: tests/test_parser_v03.py::test_image_only_page_reports_possible_scanner
+  - id: P031-08
+    input: Broken/encrypted/oversized PDF
+    expected: Deterministic failure code, no partial output
+    automated: true
+    test: tests/test_parser_v03.py::test_invalid_input_and_limits_fail_closed
+  - id: P031-09
+    input: Repeated same PDF/revision/config
+    expected: Stable block identifiers and canonical bytes
+    automated: true
+    test: tests/test_parser_v03.py::test_reproducible_artifact_ids_and_hash
+  - id: P031-10
+    input: Real-world annotated complex academic PDFs
+    expected: Human validated reading order, table and formula fidelity
+    automated: false
+    limitation: Requires rights-cleared corpus with independent annotations
+  - id: P031-11
+    input: Scanned papers with independent OCR ground truth
+    expected: Reliable OCR recall and placement
+    automated: false
+    limitation: No OCR integration in this PR
