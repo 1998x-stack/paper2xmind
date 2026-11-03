@@ -21,7 +21,10 @@ from app.services.evidence_repo import EvidenceRepository, EvidenceStoreError
 from paper2xmind.chunking import ChunkManifest
 from paper2xmind.domain import DocumentIR
 from paper2xmind.extraction import ClaimExtractionLedger
-from paper2xmind.review import ReviewAuthority, ReviewError
+from paper2xmind.review import (
+    ReviewAuthority, ReviewError, ReviewAnalysis, ReviewOutcome,
+    validate_review_outcome,
+)
 
 
 router = APIRouter(prefix="/api/evidence/papers", tags=["evidence"])
@@ -145,13 +148,38 @@ class ReviewInput(BaseModel):
     )
 
 
+def _verified_read(payload: dict) -> dict:
+    """Every API response with a supported verdict must verify signatures.
+
+    SQLite SHA hashes alone cannot authenticate a review if an attacker
+    rewrites both the blob and its stored digest. Review keys never leave
+    the server; missing or revoked keys fail closed.
+    """
+    review = payload.get("review_outcome")
+    if review is None:
+        return payload
+    source = payload["documents"]
+    doc = DocumentIR.model_validate(source["document_ir"])
+    chunks = ChunkManifest.model_validate(source["chunks"])
+    ledger = ClaimExtractionLedger.model_validate(source["claims"])
+    analysis = ReviewAnalysis.model_validate(source["review_analysis"])
+    outcome = ReviewOutcome.model_validate(review)
+    validate_review_outcome(
+        doc, chunks, ledger, analysis, outcome, authority=_authority(),
+    )
+    return payload
+
+
 @router.get("/{paper_id}/latest")
 def latest(paper_id: str, principal: Principal = Depends(_authenticate)):
     _role(principal, "viewer")
     result = _repository().latest(paper_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Evidence not published")
-    return result
+    try:
+        return _verified_read(result)
+    except (ReviewError, ValueError) as exc:
+        raise _translate(exc) from exc
 
 
 @router.get("/{paper_id}/revisions/{revision_id}")
@@ -159,8 +187,8 @@ def read_revision(paper_id: str, revision_id: str,
                   principal: Principal = Depends(_authenticate)):
     _role(principal, "viewer")
     try:
-        return _repository().read(paper_id, revision_id)
-    except EvidenceStoreError as exc:
+        return _verified_read(_repository().read(paper_id, revision_id))
+    except (EvidenceStoreError, ReviewError, ValueError) as exc:
         raise _translate(exc) from exc
 
 
@@ -218,12 +246,12 @@ def review_claim(paper_id: str, revision_id: str, payload: ReviewInput,
                  principal: Principal = Depends(_authenticate)):
     _role(principal, "reviewer")
     try:
-        return _repository().review(
+        return _verified_read(_repository().review(
             paper_id, revision_id,
             claim_id=payload.claim_id, verdict=payload.verdict,
             rationale=payload.rationale, nonce=payload.nonce,
             expected_outcome_sha256=payload.expected_outcome_sha256,
             reviewer_id=principal.actor_id, authority=_authority(),
-        )
+        ))
     except (ValueError, ReviewError, EvidenceStoreError) as exc:
         raise _translate(exc) from exc
