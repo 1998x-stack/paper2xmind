@@ -18,6 +18,8 @@ dependencies = [
 [project.optional-dependencies]
 # Import and model download costs are opt-in; native PyMuPDF stays lightweight.
 docling = ["docling>=2.50,<3"]
+# Optional matching token counter. Default chunker uses UTF-8 bytes, not model tokens.
+tokenizers = ["tiktoken>=0.7,<1"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
