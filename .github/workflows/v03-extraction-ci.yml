@@ -27,6 +27,8 @@ jobs:
         run: |
           python -m compileall -q paper2xmind/extraction
           python -m paper2xmind.domain.export_schema /tmp/p2x-v034-schema
+          python -m paper2xmind.extraction.export_schema /tmp/p2x-v034-claims
+          test -f /tmp/p2x-v034-claims/claim_extraction_ledger_v1.schema.json
       - name: Full core and extraction golden tests
         run: python -m pytest tests -q
       - name: Backend regression tests

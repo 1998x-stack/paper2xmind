@@ -20,7 +20,7 @@ from paper2xmind.domain.validation import canonical_serialize
 from paper2xmind.domain.document_ir import DomainModel
 from paper2xmind.domain.evidence import validate_evidence_spans
 from .contracts import (
-    ClaimExtractionError, ClaimExtractionLedger,
+    EXTRACTOR_VERSION, ClaimExtractionError, ClaimExtractionLedger,
 )
 from .prompts import PROMPT_VERSION, prompt_sha256
 
@@ -79,9 +79,13 @@ def validate_extraction_ledger(
     # cannot be independently audited.
     expected_config_hash = hashlib.sha256(
         canonical_serialize(ledger.extraction_config)
+        + EXTRACTOR_VERSION.encode("utf-8")
         + ledger.model_id.encode("utf-8")
         + ledger.prompt_sha256.encode("ascii")
     ).hexdigest()
+    if ledger.extractor_version != EXTRACTOR_VERSION:
+        raise ClaimExtractionError("LEDGER_EXTRACTOR_VERSION_MISMATCH",
+                                   "Extractor runtime contract differs")
     if ledger.extraction_config_sha256 != expected_config_hash:
         raise ClaimExtractionError("LEDGER_CONFIG_FINGERPRINT_INVALID",
                                    "Extraction configuration was altered")

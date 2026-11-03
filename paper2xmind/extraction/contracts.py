@@ -15,6 +15,7 @@ from paper2xmind.domain.claims import Claim, ClaimKind, OriginType
 from paper2xmind.domain.evidence import EvidenceRef
 
 EXTRACTION_SCHEMA_VERSION = "claim_extraction/1.0.0"
+EXTRACTOR_VERSION = "grounded_extractor/0.3.4"
 RAW_SCHEMA_VERSION = "claim_candidates/1.0.0"
 
 
@@ -143,6 +144,7 @@ class ClaimExtractionLedger(DomainModel):
     revision_id: str
     pdf_sha256: str
     chunk_config_sha256: str
+    extractor_version: Literal["grounded_extractor/0.3.4"] = EXTRACTOR_VERSION
     extraction_config_sha256: str
     extraction_config: ExtractionConfig
     model_id: str = Field(min_length=1, max_length=128)

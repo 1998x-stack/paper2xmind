@@ -32,7 +32,7 @@ from paper2xmind.domain.evidence import (
 )
 from paper2xmind.domain.validation import canonical_serialize
 from .contracts import (
-    ClaimExtractionError, ExtractionConfig, ClaimModel,
+    EXTRACTOR_VERSION, ClaimExtractionError, ExtractionConfig, ClaimModel,
     RawExtractionResponse, RawClaimProposal, ChunkExtractionRecord,
     RejectedProposal, ClaimOccurrence, ClaimExtractionLedger,
 )
@@ -174,6 +174,7 @@ class GroundedClaimExtractor:
         if len(manifest.chunks) > self.config.max_chunks:
             raise ClaimExtractionError("TOO_MANY_CHUNKS", "Exceeds extraction limit")
         config_hash = _sha(canonical_serialize(self.config)
+                           + EXTRACTOR_VERSION.encode("utf-8")
                            + self.model.model_id.encode("utf-8")
                            + prompt_sha256().encode("ascii"))
 
@@ -277,6 +278,7 @@ class GroundedClaimExtractor:
         ledger = ClaimExtractionLedger(
             revision_id=document.revision_id, pdf_sha256=document.pdf_sha256,
             chunk_config_sha256=manifest.config_sha256,
+            extractor_version=EXTRACTOR_VERSION,
             extraction_config_sha256=config_hash,
             extraction_config=self.config,
             model_id=self.model.model_id,

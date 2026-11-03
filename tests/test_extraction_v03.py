@@ -363,6 +363,7 @@ def test_ledger_config_snapshot_is_independently_auditable():
         manifest.chunks[0].chunk_id: response(propose([cite(doc)])),
     })
     assert ledger.extraction_config.max_candidates_per_chunk == 12
+    assert ledger.extractor_version == "grounded_extractor/0.3.4"
     forged = ledger.model_copy(update={"extraction_config_sha256": "0" * 64})
     with pytest.raises(ClaimExtractionError, match="LEDGER_CONFIG_FINGERPRINT_INVALID"):
         validate_extraction_ledger(doc, manifest, forged)
@@ -405,3 +406,14 @@ def test_model_must_supply_correct_explicit_schema_version():
     omitted = json.dumps({"claims": [], "abstain_reason": "none"})
     with pytest.raises(ClaimExtractionError, match="MODEL_SCHEMA_INVALID"):
         extract(doc, manifest, {manifest.chunks[0].chunk_id: omitted})
+
+
+
+def test_extractor_version_is_part_of_deterministic_config_fingerprint():
+    doc, manifest = fixture_doc()
+    ledger = extract(doc, manifest, {
+        manifest.chunks[0].chunk_id: response(propose([cite(doc)])),
+    })
+    forged = ledger.model_copy(update={"extractor_version": "grounded_extractor/9"})
+    with pytest.raises(ClaimExtractionError, match="LEDGER_EXTRACTOR_VERSION_MISMATCH"):
+        validate_extraction_ledger(doc, manifest, forged)
