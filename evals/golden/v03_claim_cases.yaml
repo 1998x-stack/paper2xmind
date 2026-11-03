@@ -1,0 +1,65 @@
+schema_version: v0.3/claim-extraction-golden/1
+# All default CI fixtures synthetic and entirely offline.
+scenarios:
+  - id: EX-001
+    requirement: Exact DocumentIR+Chunk primary-backed source anchor
+    test: tests/test_extraction_v03.py::test_valid_candidate_from_chunk_has_real_provenance_and_never_verified
+  - id: EX-002
+    requirement: Identical proposition and identical evidence deduplicated with occurrence trace
+    test: tests/test_extraction_v03.py::test_duplicate_claim_same_evidence_deduped_without_losing_occurrence
+  - id: EX-003
+    requirement: Similar proposition different experiment evidence must stay separate
+    test: tests/test_extraction_v03.py::test_identical_assertion_with_different_evidence_not_merged
+  - id: EX-004
+    requirement: Model may not supply supported verdict or assessment field
+    test: tests/test_extraction_v03.py::test_untrusted_model_cannot_supply_verification_fields
+  - id: EX-005
+    requirement: Wrong quote offsets reject a single candidate with explicit status
+    test: tests/test_extraction_v03.py::test_wrong_quote_or_offset_becomes_rejected_not_verified
+  - id: EX-006
+    requirement: Strict invalid-candidate policy must fail whole batch
+    test: tests/test_extraction_v03.py::test_strict_invalid_candidate_fails_entire_job
+  - id: EX-007
+    requirement: Model may not cite unpresented DocumentIR blocks
+    test: tests/test_extraction_v03.py::test_candidate_cannot_cite_a_block_outside_its_chunk
+  - id: EX-008
+    requirement: Context-only claim cannot be promoted to candidate
+    test: tests/test_extraction_v03.py::test_context_only_citation_rejected_in_later_chunk
+  - id: EX-009
+    requirement: Continuous quote across Context and Primary boundaries accepted
+    test: tests/test_extraction_v03.py::test_cross_boundary_context_and_primary_quote_is_accepted
+  - id: EX-010
+    requirement: Empty extraction requires explicit abstention without false verdict
+    test: tests/test_extraction_v03.py::test_abstention_is_explicit_and_never_hallucinates
+  - id: EX-011
+    requirement: Duplicate JSON keys, invalid schema and oversized output fail
+    test: tests/test_extraction_v03.py::test_malformed_json_duplicate_keys_and_oversize_response_fail_closed
+  - id: EX-012
+    requirement: Source text is untrusted; prompt injection cannot forge source anchors
+    test: tests/test_extraction_v03.py::test_prompt_injection_is_only_source_data_and_citations_still_checked
+  - id: EX-013
+    requirement: Broken input ChunkManifest prohibits all model calls
+    test: tests/test_extraction_v03.py::test_invalid_chunk_manifest_blocks_all_model_calls
+  - id: EX-014
+    requirement: Ledger config snapshot independently rechecks SHA and primary guard cannot turn off
+    test: tests/test_extraction_v03.py::test_ledger_config_snapshot_is_independently_auditable
+  - id: EX-015
+    requirement: Offline fixture extraction publishes canonical atomic JSON
+    test: tests/test_extraction_v03.py::test_cli_explicit_fixture_offline_and_atomic_output
+  - id: EX-016
+    requirement: Independently annotated exact-surface precision and recall
+    test: tests/test_extraction_eval_v03.py::test_exact_claim_evaluator_reports_true_positives
+  - id: EX-017
+    requirement: A sourced but false interpretation remains a false positive in human gold eval
+    test: tests/test_extraction_eval_v03.py::test_valid_anchor_does_not_imply_ground_truth_semantics
+  - id: EX-018
+    requirement: Missing licensed source and invalid hashes/traversal rejected
+    test: tests/test_extraction_eval_v03.py::test_corrupt_input_hash_and_rights_are_rejected
+  - id: EX-019
+    requirement: Real-paper independent scientific QA and semantics
+    tested: false
+    limitation: Rights-cleared and independently human-reviewed research corpus not supplied
+  - id: EX-020
+    requirement: Real Qwen/vLLM or OpenAI-compatible API inference and cost
+    tested: false
+    limitation: No external model calls in default CI; manual opt-in required
