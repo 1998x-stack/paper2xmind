@@ -55,6 +55,9 @@ gates:
     tested: false
     reason: No licensed independently annotated real-paper corpus supplied
   - id: INT-17
-    check: Live browser Playwright, real reviewer identity and TLS proxy chaos
+    check: Real Chromium inspector UI loads source and submits review intent against mocked API
+    command: "cd frontend && npx playwright test"
+  - id: INT-18
+    check: Deployed full-stack browser, real reviewer identity and TLS proxy chaos
     tested: false
-    reason: No production identity/proxy/browser deployment in default CI
+    reason: No production identity or reverse proxy in default CI

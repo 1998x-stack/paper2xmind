@@ -230,6 +230,10 @@ DocumentIR→ChunkManifest→FixtureClaimModel→Ledger→SQLite staging→publi
 The CI checks include:
 - complete legacy core and backend regression suites on Python 3.10/3.11/3.12;
 - Vite TypeScript production build;
+- actual Chromium Playwright browser E2E of the evidence inspector using
+  deliberately mocked HTTP responses (access denial, exact source rendering,
+  review request fields and UI acknowledgement); this verifies browser
+  behavior, NOT the server's reviewer identity or live PDF semantics;
 - schema export and Python compilation;
 - immutable staged artifact conflict, publish idempotency and SHA readback;
 - append-once claims and optimistic bundle version CAS;
@@ -240,9 +244,9 @@ The CI checks include:
 - optional worker source-only publication with both flags enabled;
 - previous PR-032–035 independently curated corpus evaluator tests.
 
-Real-model extraction/semantic accuracy, real human review, live Playwright
-browser E2E and operational canary/backup/restore/hostile-network testing were
-not performed. None should be presented as passing simply because CI is green.
+Real-model extraction/semantic accuracy, real human review, browser E2E
+against a live authenticated backend, and operational canary/backup/restore/
+hostile-network testing were not performed. None should be presented as passing simply because CI is green.
 
 ## Release / rollback sequence
 
