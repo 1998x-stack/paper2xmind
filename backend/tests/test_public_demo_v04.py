@@ -139,3 +139,30 @@ def test_demo_never_invokes_online_provider(monkeypatch):
     demo_snapshot.cache_clear()
     result, _ = demo_snapshot()
     assert result["research_map"]["contains_unreviewed_claims"] is True
+
+
+
+def test_default_deployment_is_protected_without_any_public_flags(monkeypatch):
+    """A misconfigured internet deployment must not expose legacy papers."""
+    monkeypatch.delenv("P2X_DEPLOYMENT_MODE", raising=False)
+    monkeypatch.delenv("P2X_PUBLIC_DEMO_ENABLED", raising=False)
+    monkeypatch.delenv("P2X_EVIDENCE_AUTH_JSON", raising=False)
+    monkeypatch.setenv("P2X_DISABLE_WORKER", "1")
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+        assert client.get("/api/papers").status_code == 401
+        assert client.get("/api/categories").status_code == 401
+        assert client.get("/api/public/demos").status_code == 404
+        assert client.post("/api/papers/upload", files={
+            "file": ("unsafe.pdf", b"%PDF-1.4", "application/pdf"),
+        }).status_code == 401
+
+
+def test_default_public_guard_does_not_replace_evidence_review_authentication(monkeypatch):
+    monkeypatch.delenv("P2X_DEPLOYMENT_MODE", raising=False)
+    monkeypatch.setenv("P2X_EVIDENCE_ENABLED", "1")
+    monkeypatch.setenv("P2X_DISABLE_WORKER", "1")
+    monkeypatch.delenv("P2X_EVIDENCE_AUTH_JSON", raising=False)
+    with TestClient(app) as client:
+        response = client.get("/api/evidence/papers/" + "a" * 32 + "/latest")
+        assert response.status_code == 401
