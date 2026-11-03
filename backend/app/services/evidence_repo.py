@@ -231,6 +231,66 @@ class EvidenceRepository:
             "published_at": bundle["published_at"],
         }
 
+    def enrich_claims(
+        self, paper_id: str, revision_id: str, claims: ClaimExtractionLedger,
+        *, actor_id: str, expected_bundle_hash: str,
+    ) -> dict:
+        """Append immutable claims/analysis to a previously published baseline.
+
+        Existing DocumentIR/chunks and source PDF are never overwritten.
+        Each generation has its own hash in the append-only audit chain.
+        Requires optimistic bundle digest to prevent stale model publication.
+        """
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            bundle = db.execute(
+                "SELECT * FROM evidence_bundles WHERE paper_id=? AND revision_id=?",
+                (paper_id, revision_id),
+            ).fetchone()
+            if bundle is None or bundle["state"] != "PUBLISHED":
+                raise EvidenceStoreError("NOT_PUBLISHED", "Publish source evidence first")
+            self._revision(db, paper_id, revision_id, bundle["pdf_sha256"])
+            existing = self._read_artifacts(db, revision_id)
+            document = DocumentIR.model_validate_json(existing["document_ir"])
+            chunks = ChunkManifest.model_validate_json(existing["chunks"])
+            validate_extraction_ledger(document, chunks, claims)
+            analysis = analyze_claims(document, chunks, claims)
+            claim_bytes = canonical_serialize(claims)
+            analysis_bytes = canonical_serialize(analysis)
+            if max(len(claim_bytes), len(analysis_bytes)) > self.MAX_ARTIFACT_BYTES:
+                raise EvidenceStoreError("EVIDENCE_ARTIFACT_TOO_LARGE", "Claims exceed size limit")
+            if "claims" in existing:
+                if existing["claims"] != claim_bytes or existing["review_analysis"] != analysis_bytes:
+                    raise EvidenceStoreError("IMMUTABLE_CLAIMS_CONFLICT", "Another extraction is already published")
+                return self._bundle_metadata(db, revision_id)
+            if bundle["bundle_hash"] != expected_bundle_hash:
+                raise EvidenceStoreError("BUNDLE_VERSION_CONFLICT", "Reload source bundle first")
+            if db.execute(
+                "SELECT 1 FROM evidence_review_events WHERE revision_id=? LIMIT 1",
+                (revision_id,),
+            ).fetchone():
+                raise EvidenceStoreError("REVIEW_ALREADY_STARTED", "Cannot enrich after review")
+            for kind, payload in (("claims", claim_bytes), ("review_analysis", analysis_bytes)):
+                db.execute(
+                    "INSERT INTO evidence_artifacts(revision_id,kind,sha256,content) "
+                    "VALUES (?,?,?,?)",
+                    (revision_id, kind, _digest(payload), payload),
+                )
+            artifact_hashes = {
+                kind: _digest(value) for kind, value in
+                {**existing, "claims": claim_bytes, "review_analysis": analysis_bytes}.items()
+            }
+            revised_hash = _digest(_stable_json_bytes({
+                "revision_id": revision_id, "pdf_sha256": document.pdf_sha256,
+                "artifacts": artifact_hashes,
+            }))
+            db.execute(
+                "UPDATE evidence_bundles SET bundle_hash=? WHERE revision_id=?",
+                (revised_hash, revision_id),
+            )
+            self._audit(db, revision_id, "ENRICH_CLAIMS", actor_id, revised_hash)
+            return self._bundle_metadata(db, revision_id)
+
     def publish(self, paper_id: str, revision_id: str, *, actor_id: str) -> dict:
         """Commit the staged bundle in one transaction with read-back SHA checks."""
         with self._connect() as db:
