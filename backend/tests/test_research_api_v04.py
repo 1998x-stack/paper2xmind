@@ -9,7 +9,7 @@ from app.main import app
 from app.api import evidence as evidence_api
 from app.api import research_maps
 from app.services.evidence_repo import EvidenceRepository
-from test_evidence_v03 import fixture_paper, _authority
+from backend.tests.test_evidence_v03 import fixture_paper, _authority
 
 
 def _config(tmp_path, monkeypatch):
