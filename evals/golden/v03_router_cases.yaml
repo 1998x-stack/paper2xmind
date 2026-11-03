@@ -1,0 +1,54 @@
+# PR-032 deterministic routing regression matrix.
+# Synthetic fixtures only; no measured real-paper scientific accuracy.
+
+cases:
+  - id: P032-01
+    criterion: native-only path remains default without Docling dependency
+    test: tests/test_parser_router_v03.py::test_simple_native_profile_and_router_never_invokes_docling
+  - id: P032-02
+    criterion: two-column document triggers explainable upgrade signal
+    test: tests/test_parser_router_v03.py::test_columns_trigger_risk_and_default_still_lightweight
+  - id: P032-03
+    criterion: image-only page is reported without fabricated OCR
+    test: tests/test_parser_router_v03.py::test_scanned_page_is_not_mistaken_for_ocr_success
+  - id: P032-04
+    criterion: structured mode requires explicit heavyweight parser opt-in
+    test: tests/test_parser_router_v03.py::test_router_explicit_opt_in_and_fallback_policy
+  - id: P032-05
+    criterion: reject wrong PDF hash, source, pages, geometry, missing text, provenance
+    test: tests/test_parser_router_v03.py::test_upgrade_rejected_on_broken_contract
+  - id: P032-06
+    criterion: strict failure mode refuses silent fallback
+    test: tests/test_parser_router_v03.py::test_strict_mode_propagates_failure_without_publishing
+  - id: P032-07
+    criterion: convert Docling top-left and bottom-left coordinates without fake offsets
+    test: tests/test_parser_router_v03.py::test_docling_v2_provenance_top_left_and_bottom_left
+  - id: P032-08
+    criterion: Docling partial success and incompatible page dimensions rejected
+    test: tests/test_parser_router_v03.py::test_docling_partial_status_and_page_geometry_rejected
+  - id: P032-09
+    criterion: multi-provenance source items omitted rather than duplicated
+    test: tests/test_parser_router_v03.py::test_docling_multi_provenance_is_skipped_not_duplicated
+  - id: P032-10
+    criterion: canonical JSON CLI and explicit mode/flag contract
+    test: tests/test_parser_router_v03.py::test_router_cli_is_opt_in_and_writes_atomic_json
+  - id: P032-11
+    criterion: rights-cleared synthetic golden with exact source SHA and reading order
+    test: tests/test_parser_eval_v03.py::test_groundtruth_evaluator_exact_coverage_and_order
+  - id: P032-12
+    criterion: reverse order expected yields zero ordered-pair accuracy
+    test: tests/test_parser_eval_v03.py::test_reversed_annotations_are_not_scored_as_correct
+  - id: P032-13
+    criterion: source SHA, rights note and manifest path traversal fail closed
+    test: tests/test_parser_eval_v03.py::test_source_sha_and_license_notes_are_required
+  - id: P032-14
+    criterion: native Table caption triggers explicit escalation risk
+    test: tests/test_parser_eval_v03.py::test_profile_flags_native_table_caption
+  - id: P032-15
+    criterion: real authorized papers, multilingual columns, figures and formulas
+    automated: false
+    limitation: no separately reviewed rights-cleared corpus provided; evaluate via parser_groundtruth_v032.py
+  - id: P032-16
+    criterion: live Docling conversion including layout models
+    automated: false
+    limitation: heavy models and optional dependency not installed in default CI
