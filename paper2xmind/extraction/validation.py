@@ -22,7 +22,7 @@ from paper2xmind.domain.evidence import validate_evidence_spans
 from .contracts import (
     EXTRACTOR_VERSION, ClaimExtractionError, ClaimExtractionLedger,
 )
-from .prompts import PROMPT_VERSION, prompt_sha256
+from .prompts import PROMPT_VERSION, prompt_sha256, make_request
 
 
 class ExtractionAudit(DomainModel):
@@ -99,7 +99,11 @@ def validate_extraction_ledger(
         raise ClaimExtractionError("LEDGER_CHUNK_COVERAGE", "Missing chunk extraction records")
     if [r.chunk_id for r in ledger.per_chunk] != [c.chunk_id for c in manifest.chunks]:
         raise ClaimExtractionError("LEDGER_CHUNK_ORDER", "Extraction records differ from input chunks")
-    for r in ledger.per_chunk:
+    for r, chunk in zip(ledger.per_chunk, manifest.chunks):
+        expected_request = make_request(chunk, model_id=ledger.model_id)
+        if r.request_sha256 != expected_request.source_sha256:
+            raise ClaimExtractionError("LEDGER_REQUEST_HASH_MISMATCH",
+                                       "Model-visible chunk input differs")
         if (r.proposal_count > ledger.extraction_config.max_candidates_per_chunk
                 or r.proposal_count > 100):
             raise ClaimExtractionError("LEDGER_TOO_MANY_PROPOSALS",

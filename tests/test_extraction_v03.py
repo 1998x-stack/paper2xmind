@@ -417,3 +417,21 @@ def test_extractor_version_is_part_of_deterministic_config_fingerprint():
     forged = ledger.model_copy(update={"extractor_version": "grounded_extractor/9"})
     with pytest.raises(ClaimExtractionError, match="LEDGER_EXTRACTOR_VERSION_MISMATCH"):
         validate_extraction_ledger(doc, manifest, forged)
+
+
+
+def test_model_visible_input_hash_can_be_reconstructed_independently():
+    doc, manifest = fixture_doc()
+    ledger = extract(doc, manifest, {
+        manifest.chunks[0].chunk_id: response(propose([cite(doc)])),
+    })
+    assert ledger.per_chunk[0].request_sha256 == make_request(
+        manifest.chunks[0], model_id=ledger.model_id,
+    ).source_sha256
+    forged_record = ledger.per_chunk[0].model_copy(
+        update={"request_sha256": "f" * 64}
+    )
+    with pytest.raises(ClaimExtractionError, match="LEDGER_REQUEST_HASH_MISMATCH"):
+        validate_extraction_ledger(
+            doc, manifest, ledger.model_copy(update={"per_chunk": (forged_record,)})
+        )

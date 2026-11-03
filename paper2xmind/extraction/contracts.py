@@ -130,7 +130,8 @@ class ChunkExtractionRecord(DomainModel):
     accepted_occurrences: int = Field(ge=0)
     rejected_proposals: int = Field(ge=0)
     abstain_reason: str | None = Field(default=None, max_length=500)
-    response_sha256: str
+    request_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[a-f0-9]{64}$")
+    response_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[a-f0-9]{64}$")
 
     @model_validator(mode="after")
     def counts_match(self) -> "ChunkExtractionRecord":

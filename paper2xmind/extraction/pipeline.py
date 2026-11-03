@@ -222,6 +222,7 @@ class GroundedClaimExtractor:
                 accepted_occurrences=len(accepted) - start_accept,
                 rejected_proposals=len(rejected) - start_reject,
                 abstain_reason=response.abstain_reason,
+                request_sha256=request.source_sha256,
                 response_sha256=_sha(raw_text),
             ))
 
