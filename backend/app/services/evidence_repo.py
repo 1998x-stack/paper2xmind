@@ -36,6 +36,14 @@ def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _stable_json_bytes(value: dict) -> bytes:
+    # Domain canonical_serialize intentionally accepts Pydantic models ONLY.
+    # These narrowly scoped metadata dictionaries have their own stable
+    # canonical encoding to avoid pretending they are domain objects.
+    return json.dumps(value, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False, allow_nan=False).encode("utf-8")
+
+
 def _read_json(payload: bytes) -> dict:
     return json.loads(payload.decode("utf-8"))
 
@@ -168,7 +176,7 @@ class EvidenceRepository:
         if any(len(value) > self.MAX_ARTIFACT_BYTES for value in payloads.values()):
             raise EvidenceStoreError("EVIDENCE_ARTIFACT_TOO_LARGE", "Artifact exceeds byte limit")
         artifact_hashes = {kind: _digest(value) for kind, value in payloads.items()}
-        bundle_hash = _digest(canonical_serialize({
+        bundle_hash = _digest(_stable_json_bytes({
             "revision_id": document.revision_id, "pdf_sha256": document.pdf_sha256,
             "artifacts": artifact_hashes,
         }))
@@ -323,7 +331,7 @@ class EvidenceRepository:
             any(c not in "0123456789abcdef" for c in expected_outcome_sha256)
         ):
             raise EvidenceStoreError("OUTCOME_SHA_INVALID", "Expected SHA-256 hex")
-        request_hash = _digest(canonical_serialize({
+        request_hash = _digest(_stable_json_bytes({
             "paper_id": paper_id, "revision_id": revision_id,
             "claim_id": claim_id, "verdict": verdict,
             "rationale": rationale, "nonce": nonce,
