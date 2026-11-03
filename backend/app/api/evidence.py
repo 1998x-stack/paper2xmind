@@ -115,7 +115,8 @@ def _translate(exc: Exception) -> HTTPException:
     if code in {"REVISION_NOT_FOUND", "EVIDENCE_BUNDLE_NOT_FOUND", "CLAIM_NOT_FOUND"}:
         status = 404
     elif code in {"REVIEW_VERSION_CONFLICT", "IMMUTABLE_BUNDLE_CONFLICT",
-                  "NOT_PUBLISHED", "REVIEW_NONCE_REPLAY", "REVIEW_DUPLICATE_CLAIM",
+                  "NOT_PUBLISHED", "BUNDLE_VERSION_CONFLICT", "IMMUTABLE_CLAIMS_CONFLICT",
+                  "REVIEW_NONCE_REPLAY", "REVIEW_DUPLICATE_CLAIM",
                   "REVIEW_CLAIM_UNKNOWN_OR_DUPLICATE"}:
         status = 409
     else:
@@ -127,6 +128,11 @@ class StageInput(BaseModel):
     document: DocumentIR
     chunks: ChunkManifest
     claims: ClaimExtractionLedger | None = None
+
+
+class EnrichInput(BaseModel):
+    claims: ClaimExtractionLedger
+    expected_bundle_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class ReviewInput(BaseModel):
@@ -189,6 +195,20 @@ def publish_revision(paper_id: str, revision_id: str,
     _role(principal, "importer")
     try:
         return _repository().publish(paper_id, revision_id, actor_id=principal.actor_id)
+    except (ValueError, EvidenceStoreError) as exc:
+        raise _translate(exc) from exc
+
+
+@router.post("/{paper_id}/revisions/{revision_id}/enrich")
+def enrich_revision(paper_id: str, revision_id: str, payload: EnrichInput,
+                    principal: Principal = Depends(_authenticate)):
+    _role(principal, "importer")
+    try:
+        return _repository().enrich_claims(
+            paper_id, revision_id, payload.claims,
+            actor_id=principal.actor_id,
+            expected_bundle_hash=payload.expected_bundle_hash,
+        )
     except (ValueError, EvidenceStoreError) as exc:
         raise _translate(exc) from exc
 
