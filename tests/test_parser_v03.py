@@ -240,3 +240,32 @@ def test_parser_fuzz_fragment_gap_and_duplicate_text():
     assert first == second
     assert len(first.ordered) == 2
     assert first.columns == 1
+
+
+
+def test_section_spanners_preserve_column_order_in_bands():
+    """Cross-column headings divide the two-column reading order into bands."""
+    rows = [
+        ("HEADER", 180, 28, 20),
+        ("LEFT_A", 65, 90, 11), ("RIGHT_A", 330, 90, 11),
+        ("LEFT_B", 65, 125, 11), ("RIGHT_B", 330, 125, 11),
+        ("FULLWIDTH_SECTION", 50, 170, 18),
+        ("LEFT_C", 65, 230, 11), ("RIGHT_C", 330, 230, 11),
+        ("LEFT_D", 65, 265, 11), ("RIGHT_D", 330, 265, 11),
+    ]
+    raw = [
+        {"type": 0, "number": i,
+         "lines": [{"dir": (1, 0), "spans": [{
+             "bbox": (x, y, x + (500 if text == "FULLWIDTH_SECTION" else
+                                    260 if text == "HEADER" else 210), y + 15),
+             "text": text, "size": size
+         }]}]}
+        for i, (text, x, y, size) in enumerate(rows)
+    ]
+    layout = reconstruct_layout(raw, width=620)
+    assert layout.columns == 2
+    assert [x.text for x in layout.ordered] == [
+        "HEADER", "LEFT_A", "LEFT_B", "RIGHT_A", "RIGHT_B",
+        "FULLWIDTH_SECTION", "LEFT_C", "LEFT_D", "RIGHT_C", "RIGHT_D"
+    ]
+    assert layout.raw_text_chars == sum(len(text) for text, _, _, _ in rows)

@@ -185,6 +185,14 @@ def reconstruct_layout(
     atoms: list[_Atom] = []
     warnings: list[str] = []
     order = 0
+    # Raw character count excludes heuristically inserted word spaces.
+    raw_chars = sum(
+        len(span.get("text", ""))
+        for block in raw_blocks if block.get("type") == 0
+        for line in block.get("lines", ())
+        for span in line.get("spans", ())
+        if isinstance(span.get("text"), str)
+    )
     for block in raw_blocks:
         if block.get("type") != 0:
             continue
@@ -202,7 +210,7 @@ def reconstruct_layout(
             ordered=tuple(sorted(candidates, key=lambda c: (c.bbox[1], c.bbox[0], c.source_order))),
             strategy="top_left_fallback", columns=1,
             warnings=tuple(sorted(set(warnings))),
-            raw_text_chars=sum(len(a.text) for a in atoms),
+            raw_text_chars=raw_chars,
         )
 
     # Separate wide/full-span blocks (title, abstract heading, etc.) into
@@ -215,23 +223,28 @@ def reconstruct_layout(
           c.max_font_size >= baseline * 1.35)],
         key=lambda c: (c.bbox[1], c.source_order),
     )
-    remaining = [c for c in candidates if c not in spanners]
+    # Sort body once; avoid O(N^2) repeated 'in list' tests on long
+    # pages with many headings. source_order is unique for each logical run.
+    spanner_ids = {c.source_order for c in spanners}
+    body = sorted(
+        (c for c in candidates if c.source_order not in spanner_ids),
+        key=lambda c: ((c.bbox[1] + c.bbox[3]) / 2, c.source_order),
+    )
     ordered: list[TextCandidate] = []
-    lower_bound = float("-inf")
+    cursor = 0
     for heading in spanners:
-        # Avoid ordering a paragraph after a header that intersects its bbox.
-        band = [c for c in remaining if lower_bound <=
-                (c.bbox[1] + c.bbox[3]) / 2 < heading.bbox[1]]
-        remaining = [c for c in remaining if c not in band]
-        ordered.extend(_sort_band(band))
+        start = cursor
+        while (cursor < len(body) and
+               (body[cursor].bbox[1] + body[cursor].bbox[3]) / 2 < heading.bbox[1]):
+            cursor += 1
+        ordered.extend(_sort_band(body[start:cursor]))
         ordered.append(heading)
-        lower_bound = heading.bbox[1]
-    ordered.extend(_sort_band(remaining))
+    ordered.extend(_sort_band(body[cursor:]))
     warnings.append("TWO_COLUMN_HEURISTIC")
     return LayoutResult(
         ordered=tuple(ordered), strategy="two_column_heuristic", columns=2,
         warnings=tuple(sorted(set(warnings))),
-        raw_text_chars=sum(len(a.text) for a in atoms),
+        raw_text_chars=raw_chars,
     )
 
 
