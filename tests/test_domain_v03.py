@@ -142,7 +142,7 @@ def test_wrong_revision_page_span_hash_and_duplicates():
     with pytest.raises(DomainValidationError, match="PAGE_MISMATCH"):
         validate_evidence_spans(doc, [ref.model_copy(update={"page_index": 2})])
     with pytest.raises(DomainValidationError, match="QUOTE_MISMATCH"):
-        validate_evidence_spans(doc, [ref.model_copy(update={"start_cp": 0, "end_cp": len(ref.quote)})])
+        validate_evidence_spans(doc, [ref.model_copy(update={"start_cp": 1, "end_cp": len(ref.quote) + 1})])
     with pytest.raises(ValidationError, match="QUOTE_HASH_MISMATCH"):
         EvidenceRef.model_validate({**ref.model_dump(), "quote_sha256": "0"*64})
     with pytest.raises(DomainValidationError, match="DUPLICATE_EVIDENCE_ID"):
@@ -224,7 +224,12 @@ def test_schema_export_and_untyped_serialization_rejected(tmp_path):
     assert len(paths) == len(SCHEMAS) == 6
     for path in paths:
         schema = json.loads(path.read_text(encoding="utf-8"))
-        assert "properties" in schema
-        assert schema["additionalProperties"] is False
+        # Recursive MindNode exports a legal top-level $ref to $defs.
+        actual = schema
+        if "$ref" in actual:
+            assert actual["$ref"].startswith("#/$defs/")
+            actual = schema["$defs"][actual["$ref"].split("/")[-1]]
+        assert "properties" in actual
+        assert actual["additionalProperties"] is False
     with pytest.raises(TypeError):
         canonical_serialize({"raw": "dict"})
