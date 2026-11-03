@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import fitz
@@ -269,3 +271,30 @@ def test_section_spanners_preserve_column_order_in_bands():
         "FULLWIDTH_SECTION", "LEFT_C", "LEFT_D", "RIGHT_C", "RIGHT_D"
     ]
     assert layout.raw_text_chars == sum(len(text) for text, _, _, _ in rows)
+
+
+
+def test_cli_creates_valid_atomic_json_and_fails_without_partial_output(tmp_path):
+    doc, page, path = _pdf(tmp_path, name="cli.pdf")
+    page.insert_text((70, 120), "Offline CLI PDF content")
+    doc.save(path); doc.close()
+    output = tmp_path / "artifacts" / "parse.json"
+    cmd = [
+        sys.executable, "-m", "paper2xmind.parsers", str(path),
+        "--revision-id", REV, "--output", str(output),
+    ]
+    completed = subprocess.run(cmd, capture_output=True, text=True)
+    assert completed.returncode == 0, completed.stderr
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    assert DocumentIR.model_validate(saved["document"]).revision_id == REV
+    assert saved["diagnostics"][0]["emitted_block_count"] >= 1
+    assert not list(output.parent.glob("*.tmp"))
+
+    broken = tmp_path / "broken.pdf"
+    broken.write_bytes(b"corrupted pdf bytes" * 20)
+    failed = subprocess.run([
+        sys.executable, "-m", "paper2xmind.parsers", str(broken),
+        "--revision-id", REV, "--output", str(tmp_path / "artifacts" / "failed.json"),
+    ], capture_output=True, text=True)
+    assert failed.returncode != 0
+    assert not (tmp_path / "artifacts" / "failed.json").exists()
