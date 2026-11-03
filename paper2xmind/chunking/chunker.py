@@ -22,7 +22,7 @@ from paper2xmind.domain.document_ir import DocumentIR, DocumentBlock
 from .budget import BudgetCounter, Utf8ByteCounter
 from .contracts import (
     CHUNK_SCHEMA_VERSION, SEPARATOR, ChunkingError, ChunkerConfig,
-    ChunkFragment, ChunkManifest, DocumentChunk,
+    ChunkFragment, ChunkManifest, DocumentChunk, render_fragments,
 )
 
 CHUNKER_VERSION = "source_span_chunker/0.3.3"
@@ -145,7 +145,8 @@ def _suffix_within(
         end = fragment.end_cp
         start = fragment.start_cp + mid
         trial = fragment.text[mid:]
-        combined = SEPARATOR.join([trial] + [part.text for part in following])
+        combined = render_fragments([fragment.model_copy(update={"text": trial,
+            "start_cp": start, "role": "context"})] + following)
         if counter.count(combined) <= budget:
             best = mid
             right = mid - 1
@@ -180,7 +181,7 @@ def _suffix_within(
         ).hexdigest(),
         role="context",
     )
-    combined = SEPARATOR.join([result.text] + [part.text for part in following])
+    combined = render_fragments([result] + following)
     return result if counter.count(combined) <= budget else None
 
 
@@ -222,7 +223,7 @@ class StructureAwareChunker:
         previous_key = None
 
         def pack(parts: list[ChunkFragment]) -> str:
-            return SEPARATOR.join(fragment.text for fragment in parts)
+            return render_fragments(parts)
 
         def fits(parts: list[ChunkFragment]) -> bool:
             return (len(parts) <= config.max_fragments_per_chunk

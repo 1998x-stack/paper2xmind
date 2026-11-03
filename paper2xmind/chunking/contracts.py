@@ -17,6 +17,27 @@ CHUNK_SCHEMA_VERSION = "document_chunks/1.0.0"
 SEPARATOR = "\n\n"
 
 
+def render_fragments(fragments) -> str:
+    """Join adjacent offsets from the SAME source block without fake punctuation.
+
+    Text from separate blocks is separated by two newlines. Boundaries inside
+    one block never add characters: cross-boundary source quotes remain exact.
+    """
+    parts = list(fragments)
+    if not parts:
+        return ""
+    output = [parts[0].text]
+    previous = parts[0]
+    for fragment in parts[1:]:
+        adjacent = (fragment.block_id == previous.block_id
+                    and fragment.start_cp == previous.end_cp)
+        if not adjacent:
+            output.append(SEPARATOR)
+        output.append(fragment.text)
+        previous = fragment
+    return "".join(output)
+
+
 class ChunkingError(ValueError):
     def __init__(self, code: str, message: str):
         self.code = code
@@ -72,7 +93,7 @@ class DocumentChunk(DomainModel):
 
     @model_validator(mode="after")
     def check_structure(self) -> "DocumentChunk":
-        if self.content != SEPARATOR.join(part.text for part in self.fragments):
+        if self.content != render_fragments(self.fragments):
             raise ValueError("CHUNK_CONTENT_MISMATCH")
         if not any(part.role == "primary" for part in self.fragments):
             raise ValueError("CHUNK_PRIMARY_MISSING")

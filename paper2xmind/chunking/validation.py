@@ -13,7 +13,7 @@ from pydantic import Field
 
 from paper2xmind.domain.document_ir import DocumentIR, DomainModel
 from .budget import BudgetCounter, Utf8ByteCounter
-from .contracts import ChunkingError, ChunkManifest, ChunkFragment, SEPARATOR
+from .contracts import ChunkingError, ChunkManifest, ChunkFragment, SEPARATOR, render_fragments
 
 
 class ChunkAudit(DomainModel):
@@ -78,14 +78,14 @@ def validate_chunk_manifest(
             raise ChunkingError("BUDGET_EXCEEDED", "Chunk exceeds manifest budget")
         if len(chunk.fragments) == 0:
             raise ChunkingError("EMPTY_CHUNK", "A chunk must contain source text")
-        actual = SEPARATOR.join(f.text for f in chunk.fragments)
+        actual = render_fragments(chunk.fragments)
         actual_units = counter.count(actual)
         if chunk.content != actual or actual_units != chunk.budget_units:
             raise ChunkingError("CHUNK_CONTENT_OR_BUDGET_MISMATCH", "Chunk body or units altered")
         primary = [f for f in chunk.fragments if f.role == "primary"]
         context = [f for f in chunk.fragments if f.role == "context"]
-        if (counter.count(SEPARATOR.join(f.text for f in primary)) != chunk.primary_units
-                or (counter.count(SEPARATOR.join(f.text for f in context))
+        if (counter.count(render_fragments(primary)) != chunk.primary_units
+                or (counter.count(render_fragments(context))
                     if context else 0) != chunk.context_units):
             raise ChunkingError("BUDGET_BREAKDOWN_MISMATCH", "Primary/context counts inconsistent")
         if chunk.section_id != primary[0].section_id:
@@ -139,12 +139,34 @@ def validate_chunk_manifest(
     )
 
 
+def _gold_in_chunk(chunk, ann: GoldSpan, *, include_context: bool) -> bool:
+    """Find a contiguous character range within one source block.
+
+    Joined primary/context fragments may collectively contain a gold quote;
+    gaps between different DocumentIR blocks cannot prove contiguous quotes.
+    """
+    range_start = range_end = None
+    for fragment in chunk.fragments:
+        if fragment.block_id != ann.block_id or (
+            fragment.role != "primary" and not include_context
+        ):
+            range_start = range_end = None
+            continue
+        if range_end is not None and fragment.start_cp == range_end:
+            range_end = fragment.end_cp
+        else:
+            range_start, range_end = fragment.start_cp, fragment.end_cp
+        if range_start <= ann.start_cp and range_end >= ann.end_cp:
+            return True
+    return False
+
+
 def evaluate_gold_spans(
     document: DocumentIR, manifest: ChunkManifest,
     annotations: Iterable[GoldSpan],
     *, counter: BudgetCounter | None = None,
 ) -> GoldSpanReport:
-    """Human-supplied source quote recall. No synthetic claims of real accuracy."""
+    """Independently annotated exact source-span recall per emitted chunk."""
     validate_chunk_manifest(document, manifest, counter=counter)
     indexed = {b.block_id: b for b in document.blocks}
     total = valid = primary_hits = any_hits = 0
@@ -155,17 +177,10 @@ def evaluate_gold_spans(
                 or source.normalized_text[ann.start_cp:ann.end_cp] != ann.quote):
             continue
         valid += 1
-        primary = any(
-            fragment.block_id == ann.block_id
-            and fragment.start_cp <= ann.start_cp and fragment.end_cp >= ann.end_cp
-            and fragment.role == "primary"
-            for chunk in manifest.chunks for fragment in chunk.fragments
-        )
-        in_any = primary or any(
-            fragment.block_id == ann.block_id
-            and fragment.start_cp <= ann.start_cp and fragment.end_cp >= ann.end_cp
-            for chunk in manifest.chunks for fragment in chunk.fragments
-        )
+        primary = any(_gold_in_chunk(c, ann, include_context=False)
+                      for c in manifest.chunks)
+        in_any = primary or any(_gold_in_chunk(c, ann, include_context=True)
+                                for c in manifest.chunks)
         primary_hits += int(primary)
         any_hits += int(in_any)
     return GoldSpanReport(
