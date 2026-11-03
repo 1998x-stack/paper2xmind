@@ -51,7 +51,18 @@ class DocumentProfiler:
         sparse = sum(d.emitted_text_chars < self.config.sparse_chars_per_page for d in diags)
         dual = sum(d.detected_columns == 2 for d in diags)
         ambiguous = sum("COLUMN_ORDER_UNCERTAIN" in d.warnings for d in diags)
-        table = sum("POSSIBLE_TABULAR_TEXT" in d.warnings for d in diags)
+        table_pages = {
+            d.page_index for d in diags
+            if "POSSIBLE_TABULAR_TEXT" in d.warnings
+        }
+        table_pages.update(
+            block.page_index for block in doc.blocks
+            if block.kind == "table" or (
+                block.kind == "caption" and
+                block.text.lstrip().lower().startswith("table")
+            )
+        )
+        table = len(table_pages)
         angled = sum("NON_HORIZONTAL_TEXT" in d.warnings for d in diags)
         skipped = sum(d.skipped_block_count for d in diags)
         reasons = []

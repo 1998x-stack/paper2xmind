@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from importlib.metadata import version, PackageNotFoundError
 from pathlib import Path
 from typing import Callable, Any
 
@@ -195,9 +196,20 @@ class DoclingDocumentAdapter:
                                                            key=location.__getitem__)))
             for sid, title, level, parent in section_records
         ]
+        # Record library versions as part of the configuration fingerprint.
+        # Model artifact hashes are not available here; do not claim full
+        # numeric reproducibility across Docling installations.
+        def package_version(package: str) -> str:
+            try:
+                return version(package)
+            except PackageNotFoundError:
+                return "not_installed"
+
         config_sha = hashlib.sha256(json.dumps({
             "adapter": ADAPTER_VERSION, "ocr": False, "table_markdown": True,
             "native_hash": native.provenance.config_sha256,
+            "docling_version": package_version("docling"),
+            "docling_core_version": package_version("docling-core"),
         }, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
         if len(warnings) > 1000:
             warnings = warnings[:999] + ["WARNINGS_TRUNCATED"]
