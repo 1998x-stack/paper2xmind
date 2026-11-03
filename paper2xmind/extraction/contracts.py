@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal, Protocol, runtime_checkable
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from paper2xmind.domain.document_ir import DomainModel, _valid_revision, _valid_sha
 from paper2xmind.domain.claims import Claim, ClaimKind, OriginType
@@ -31,6 +31,13 @@ class RawEvidenceProposal(DomainModel):
     end_cp: int = Field(gt=0)
     quote: str = Field(min_length=1, max_length=20000)
 
+    @field_validator("quote")
+    @classmethod
+    def require_nonblank_quote(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("RAW_EVIDENCE_BLANK_QUOTE")
+        return value
+
     @model_validator(mode="after")
     def nonempty_range(self) -> "RawEvidenceProposal":
         if self.end_cp <= self.start_cp:
@@ -47,6 +54,13 @@ class RawClaimProposal(DomainModel):
     origin_type: OriginType
     core_claim: bool = False
     evidence: tuple[RawEvidenceProposal, ...] = Field(min_length=1, max_length=8)
+
+    @field_validator("assertion")
+    @classmethod
+    def require_nonblank_assertion(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("RAW_CLAIM_BLANK_ASSERTION")
+        return value
 
 
 class RawExtractionResponse(DomainModel):

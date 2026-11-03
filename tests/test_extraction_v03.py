@@ -376,3 +376,32 @@ def test_ledger_config_snapshot_is_independently_auditable():
 def test_primary_source_guard_cannot_be_disabled_via_config():
     with pytest.raises(ValidationError):
         ExtractionConfig(require_primary_evidence=False)
+
+
+
+def test_blank_quote_or_claim_cannot_anchor_arbitrary_scientific_claims():
+    doc, manifest = fixture_doc()
+    valid = cite(doc)
+    bad_assertion = propose([valid], assertion="   ")
+    with pytest.raises(ClaimExtractionError, match="MODEL_SCHEMA_INVALID"):
+        extract(doc, manifest, {manifest.chunks[0].chunk_id: response(bad_assertion)})
+
+    # A pure whitespace citation must not count as meaningful grounding.
+    bad_ref = dict(valid, start_cp=2, end_cp=3, quote=" ")
+    with pytest.raises(ClaimExtractionError, match="MODEL_SCHEMA_INVALID"):
+        extract(doc, manifest, {
+            manifest.chunks[0].chunk_id: response(propose([bad_ref]))
+        })
+
+
+def test_model_must_supply_correct_explicit_schema_version():
+    doc, manifest = fixture_doc()
+    wrong = json.dumps({
+        "schema_version": "claim_candidates/9.9.9",
+        "claims": [], "abstain_reason": "none",
+    })
+    with pytest.raises(ClaimExtractionError, match="MODEL_SCHEMA_INVALID"):
+        extract(doc, manifest, {manifest.chunks[0].chunk_id: wrong})
+    omitted = json.dumps({"claims": [], "abstain_reason": "none"})
+    with pytest.raises(ClaimExtractionError, match="MODEL_SCHEMA_INVALID"):
+        extract(doc, manifest, {manifest.chunks[0].chunk_id: omitted})
