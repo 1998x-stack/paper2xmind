@@ -20,7 +20,7 @@ from .contracts import ReviewAnalysis, ReviewSignal, PotentialConflict
 NUMBER = re.compile(r"(?<![\w.])[-+]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?(?![\w.])")
 UNITS = re.compile(
     r"(?<![\w.])([-+]?(?:\d+(?:\.\d+)?|\.\d+))\s*(%|percent|percentage\s+points?|"
-    r"ms|s|seconds?|minutes?|hours?|kg|g|mg|km|cm|mm|GB|MB|KB|dB|°C|°F)\b?",
+    r"ms|s|seconds?|minutes?|hours?|kg|g|mg|km|cm|mm|GB|MB|KB|dB|°C|°F)(?=$|[^A-Za-z0-9_])",
     flags=re.IGNORECASE,
 )
 _DATASETS = ("MNIST", "CIFAR-10", "CIFAR-100", "ImageNet", "SQuAD", "GLUE")
