@@ -355,3 +355,80 @@ def test_manifest_hash_detects_self_consistent_artifact_row_rewrite(tmp_path):
         )
     with pytest.raises(EvidenceStoreError, match="BUNDLE_HASH_MISMATCH"):
         repo.read(task["paper_id"], doc.revision_id)
+
+
+
+def test_api_read_independently_verifies_signed_review_against_database_tamper(
+    tmp_path, monkeypatch,
+):
+    task, doc, chunks, ledger = fixture_paper(tmp_path)
+    repo = EvidenceRepository(tmp_path)
+    repo.stage(task["paper_id"], doc, chunks, claims=ledger,
+               actor_id="importer-test")
+    repo.publish(task["paper_id"], doc.revision_id, actor_id="importer-test")
+    approved = repo.review(
+        task["paper_id"], doc.revision_id,
+        claim_id=ledger.claims[0].claim_id, verdict="supported",
+        rationale="The source and reported F1 value were checked in the original PDF.",
+        nonce="api-signed-tamper-test-01", expected_outcome_sha256=None,
+        reviewer_id="reviewer-test", authority=_authority(),
+    )
+    original = approved["review_outcome"]
+    original["claims"][0]["assessment"]["rationale"] = (
+        "An attacker wrote a different review rationale."
+    )
+    fake_bytes = json.dumps(original, ensure_ascii=False).encode("utf-8")
+    # Even rewriting BOTH review blob and its stored SHA must not bypass HMAC.
+    with sqlite3.connect(repo.path) as db:
+        db.execute(
+            "UPDATE evidence_review_state SET outcome_json=?,outcome_sha256=? "
+            "WHERE revision_id=?",
+            (fake_bytes, hashlib.sha256(fake_bytes).hexdigest(), doc.revision_id),
+        )
+    tokens, reg = _auth_config()
+    monkeypatch.setenv("P2X_EVIDENCE_ENABLED", "1")
+    monkeypatch.setenv("P2X_EVIDENCE_AUTH_JSON", json.dumps(reg))
+    monkeypatch.setenv("P2X_DISABLE_WORKER", "1")
+    monkeypatch.setattr(evidence_api.settings, "data_dir", tmp_path)
+    base = f"/api/evidence/papers/{task['paper_id']}"
+    with TestClient(app) as client:
+        result = client.get(base + "/latest", headers={
+            "Authorization": "Bearer " + tokens["viewer-test"]
+        })
+    assert result.status_code == 422
+    assert "OUTCOME_CONTENT_MISMATCH" in result.text
+
+
+def test_enrich_http_requires_role_and_rejects_stale_bundle(tmp_path, monkeypatch):
+    task, doc, chunks, ledger = fixture_paper(tmp_path)
+    repo = EvidenceRepository(tmp_path)
+    repo.stage(task["paper_id"], doc, chunks, actor_id="importer-test")
+    original = repo.publish(task["paper_id"], doc.revision_id,
+                            actor_id="importer-test")
+    tokens, registry = _auth_config()
+    monkeypatch.setenv("P2X_EVIDENCE_ENABLED", "1")
+    monkeypatch.setenv("P2X_EVIDENCE_AUTH_JSON", json.dumps(registry))
+    monkeypatch.setenv("P2X_DISABLE_WORKER", "1")
+    monkeypatch.setattr(evidence_api.settings, "data_dir", tmp_path)
+    path = (f"/api/evidence/papers/{task['paper_id']}"
+            f"/revisions/{doc.revision_id}/enrich")
+    body = {
+        "claims": ledger.model_dump(mode="json"),
+        "expected_bundle_hash": original["bundle_hash"],
+    }
+    with TestClient(app) as client:
+        viewer = client.post(path, json=body, headers={
+            "Authorization": "Bearer " + tokens["viewer-test"]
+        })
+        assert viewer.status_code == 403
+        importer = client.post(path, json=body, headers={
+            "Authorization": "Bearer " + tokens["importer-test"]
+        })
+        assert importer.status_code == 200, importer.text
+        assert "claims" in importer.json()["artifacts"]
+        stale = client.post(path, json=body | {
+            "claims": ledger.model_copy(
+                update={"model_id": "different-model"}
+            ).model_dump(mode="json")
+        }, headers={"Authorization": "Bearer " + tokens["importer-test"]})
+        assert stale.status_code == 422
