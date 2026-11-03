@@ -87,7 +87,7 @@ def test_eval_rejects_parent_path_traversal(tmp_path):
 
 
 def test_cross_boundary_evidence_quote_is_preserved_in_model_text():
-    raw = "ABCDEF GHIJKLMN OPQRSTUV WXYZ " * 40
+    raw = " ".join(f"word{i:04d}" for i in range(250))
     doc = make_document([(raw, "paragraph", None, 0)])
     manifest = chunk(doc, budget=64, overlap=12)
     primary = [f for c in manifest.chunks for f in c.fragments
@@ -95,6 +95,7 @@ def test_cross_boundary_evidence_quote_is_preserved_in_model_text():
     boundary = primary[0].end_cp
     quote = raw[boundary - 5:boundary + 5]
     assert len(manifest.chunks) > 1
+    # Text is source-unique by numbered word, unlike repeated synthetic phrases.
     assert quote not in manifest.chunks[0].content
     # The next chunk has a context suffix + primary following text. Since both
     # fragments belong to the same block, render_fragments joins them with no
