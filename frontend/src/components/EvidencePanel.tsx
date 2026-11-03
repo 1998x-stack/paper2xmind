@@ -40,6 +40,7 @@ const PAGE_SIZE = 20
 
 export const EvidencePanel: React.FC<Props> = ({ paperId }) => {
   const [token, setToken] = React.useState('')
+  const requestVersion = React.useRef(0)
   const [bundle, setBundle] = React.useState<EvidenceBundle | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
@@ -53,6 +54,7 @@ export const EvidencePanel: React.FC<Props> = ({ paperId }) => {
 
   // Never carry private evidence or credentials from one paper to another.
   React.useEffect(() => {
+    requestVersion.current += 1
     setToken('')
     setBundle(null)
     setSelectedId(null)
@@ -64,6 +66,7 @@ export const EvidencePanel: React.FC<Props> = ({ paperId }) => {
   }, [paperId])
 
   const getEvidence = async (signal?: AbortSignal) => {
+    const version = ++requestVersion.current
     if (!token.trim()) {
       setError('Enter an authorized evidence access token.')
       return
@@ -81,16 +84,16 @@ export const EvidencePanel: React.FC<Props> = ({ paperId }) => {
           : 'Evidence access failed (' + response.status + ').')
       }
       const next = await response.json() as EvidenceBundle
-      if (!signal?.aborted) {
+      if (!signal?.aborted && version === requestVersion.current) {
         setBundle(next)
         setSelectedId(null)
         setPage(0)
         setFeedback('')
       }
     } catch (err) {
-      if (!signal?.aborted) setError(err instanceof Error ? err.message : 'Request failed')
+      if (!signal?.aborted && version === requestVersion.current) setError(err instanceof Error ? err.message : 'Request failed')
     } finally {
-      if (!signal?.aborted) setLoading(false)
+      if (!signal?.aborted && version === requestVersion.current) setLoading(false)
     }
   }
 
