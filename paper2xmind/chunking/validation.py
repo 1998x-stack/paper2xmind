@@ -25,6 +25,8 @@ class ChunkAudit(DomainModel):
     duplicate_primary_codepoints: int = Field(ge=0)
     missing_primary_codepoints: int = Field(ge=0)
     max_budget_used: int = Field(ge=0)
+    context_codepoints: int = Field(ge=0)
+    context_redundancy_ratio: float = Field(ge=0, le=1)
 
 
 class GoldSpan(DomainModel):
@@ -69,7 +71,7 @@ def validate_chunk_manifest(
         )
     }
     last_primary = (-1, -1)
-    primary_count = context_count = covered = 0
+    primary_count = context_count = context_chars = covered = 0
     max_used = 0
     for chunk in manifest.chunks:
         if chunk.budget_units > manifest.max_budget_units:
@@ -105,6 +107,7 @@ def validate_chunk_manifest(
                 raise ChunkingError("FRAGMENT_SOURCE_MISMATCH", "Source text or SHA differs")
             if fragment.role == "context":
                 context_count += 1
+                context_chars += fragment.end_cp - fragment.start_cp
                 if fragment.end_cp > cursors[block.block_id]:
                     raise ChunkingError("CONTEXT_NOT_PREVIOUSLY_COVERED",
                                         "Context does not originate from earlier primary")
@@ -130,6 +133,9 @@ def validate_chunk_manifest(
         covered_codepoints=covered, expected_codepoints=expected,
         duplicate_primary_codepoints=0, missing_primary_codepoints=0,
         max_budget_used=max_used,
+        context_codepoints=context_chars,
+        context_redundancy_ratio=(context_chars / (covered + context_chars)
+                                  if covered + context_chars else 0.0),
     )
 
 
