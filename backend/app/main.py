@@ -12,6 +12,7 @@ from app.services.jobs import JobRepository
 from app.services.processor import PaperWorker
 from app.services.storage import StorageService
 from app.config import settings
+from app.security.private_api import private_api_guard
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Paper Research Platform", version="0.2.0", lifespan=lifespan)
+app.middleware("http")(private_api_guard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
