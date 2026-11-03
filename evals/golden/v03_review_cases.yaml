@@ -1,0 +1,49 @@
+schema_version: "v0.3/review-golden/1"
+# Synthetic fixtures; no real reviewer key or human-scientific truth claim.
+scenarios:
+  - id: RV-001
+    requirement: numeric match never auto-grants supported
+    test: tests/test_review_v03.py::test_matching_numeric_source_is_not_automatically_supported
+  - id: RV-002
+    requirement: externally signed mock reviewer binds immutable sources
+    test: tests/test_review_v03.py::test_human_signed_supported_verdict_binds_source_and_is_independently_verified
+  - id: RV-003
+    requirement: tampered HMAC or unapproved reviewer rejected
+    test: tests/test_review_v03.py::test_attestation_signature_and_reviewer_registry_must_be_valid
+  - id: RV-004
+    requirement: stale source review cannot be replayed
+    test: tests/test_review_v03.py::test_old_review_cannot_replay_after_claim_or_analysis_change
+  - id: RV-005
+    requirement: unsupported numeric or unit blocked from supported publication
+    test: tests/test_review_v03.py::test_numeric_mismatch_blocks_supported_but_allows_explicit_unsupported
+  - id: RV-006
+    requirement: author/prior work attribution warning and dataset risk
+    test: tests/test_review_v03.py::test_prior_work_attribution_and_dataset_scope_get_review_signals
+  - id: RV-007
+    requirement: context-similar numbers create potential conflict, not verdict
+    test: tests/test_review_v03.py::test_potential_numeric_conflicts_flag_not_auto_contradicted
+  - id: RV-008
+    requirement: extractor cannot grant own scientific assessment
+    test: tests/test_review_v03.py::test_untrusted_extractor_cannot_self_attest_even_with_key
+  - id: RV-009
+    requirement: duplicate decisions and altered claim outcomes rejected
+    test: tests/test_review_v03.py::test_outcome_tampering_is_detected
+  - id: RV-010
+    requirement: external reviewer role, minimum key strength and timestamp
+    test: tests/test_review_v03.py::test_reviewer_roles_and_key_length_are_external_gates
+  - id: RV-011
+    requirement: no automatically signed review through offline CLI
+    test: tests/test_review_v03.py::test_read_only_cli_produces_atomic_screening_report
+  - id: RV-012
+    requirement: synthetic externally labeled negative detected
+    test: tests/test_review_eval_v03.py::test_numeric_false_claim_is_screened_with_negative_recall
+  - id: RV-013
+    requirement: missing gold labels invalidate denominator
+    test: tests/test_review_eval_v03.py::test_human_gold_must_cover_every_candidate_no_denominator_shortcut
+  - id: RV-014
+    requirement: rights metadata, hashes, path traversal enforced
+    test: tests/test_review_eval_v03.py::test_gold_files_have_source_sha_and_cannot_traverse
+  - id: RV-015
+    requirement: independently authenticated real human review and corpus metrics
+    tested: false
+    limitation: neither a real rights-cleared corpus nor a human review host provided
