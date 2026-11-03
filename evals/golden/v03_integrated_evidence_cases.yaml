@@ -1,0 +1,63 @@
+schema_version: "v0.3/integrated-evidence-golden/1"
+scope: "PR-036-through-039"
+notes:
+  - Synthetic PDFs and synthetic reviewer secrets only
+  - Does not imply real human-scientific semantic accuracy
+  - One stacked PR, no main mutation
+gates:
+  - id: INT-01
+    check: Real synthetic PDF → DocumentIR → ChunkManifest → Claim ledger
+    test: backend/tests/test_evidence_v03.py::test_store_stage_publish_read_back_idempotence_and_audit
+  - id: INT-02
+    check: Immutable bundles reject replaced candidate artifacts
+    test: backend/tests/test_evidence_v03.py::test_bundle_immutability_and_stored_blob_corruption
+  - id: INT-03
+    check: Signed human review is durable and nonce idempotent
+    test: backend/tests/test_evidence_v03.py::test_signed_review_persists_and_nonce_is_idempotent
+  - id: INT-04
+    check: Stale review ETag rejects concurrent updates
+    test: backend/tests/test_evidence_v03.py::test_review_optimistic_lock_and_unpublished_block
+  - id: INT-05
+    check: Feature flag, bearer auth and role ACL protect evidence API
+    test: backend/tests/test_evidence_v03.py::test_http_feature_flag_default_deny_roles_review_and_roundtrip
+  - id: INT-06
+    check: Wrong revision path rejected
+    test: backend/tests/test_evidence_v03.py::test_http_wrong_source_revision_rejected
+  - id: INT-07
+    check: Append-only candidate enrichment after baseline publication
+    test: backend/tests/test_evidence_v03.py::test_claims_can_be_enriched_once_after_source_only_worker_publication
+  - id: INT-08
+    check: Frozen Claim ledger and optimistic bundle hash
+    test: backend/tests/test_evidence_v03.py::test_enrichment_cannot_replace_claims_or_ignore_revision_version
+  - id: INT-09
+    check: Offline auto-stage never invents model claims and requires both flags
+    test: backend/tests/test_evidence_v03.py::test_autostage_requires_both_flags_and_never_invents_claims
+  - id: INT-10
+    check: Audit hash chain detects in-place metadata tampering
+    test: backend/tests/test_evidence_v03.py::test_audit_hash_chain_detects_changes_and_is_append_only
+  - id: INT-11
+    check: Bundle-set hash detects coordinated content and row-SHA modification
+    test: backend/tests/test_evidence_v03.py::test_manifest_hash_detects_self_consistent_artifact_row_rewrite
+  - id: INT-12
+    check: API independently rechecks HMAC on published reviewed state
+    test: backend/tests/test_evidence_v03.py::test_api_read_independently_verifies_signed_review_against_database_tamper
+  - id: INT-13
+    check: Importer-only enrichment; stale/invalid claims denied
+    test: backend/tests/test_evidence_v03.py::test_enrich_http_requires_role_and_rejects_stale_bundle
+  - id: INT-14
+    check: Frontend inspector compiles and existing XMind viewer remains
+    command: "cd frontend && npm ci && npm run build"
+  - id: INT-15
+    check: Python 3.10/3.11/3.12 core and backend regression matrix
+    command: "PYTHONPATH=.:backend python -m pytest tests backend/tests -q"
+  - id: INT-16
+    check: Real rights-cleared academic papers + independent human labels
+    tested: false
+    reason: No licensed independently annotated real-paper corpus supplied
+  - id: INT-17
+    check: Real Chromium inspector UI loads source and submits review intent against mocked API
+    command: "cd frontend && npx playwright test"
+  - id: INT-18
+    check: Deployed full-stack browser, real reviewer identity and TLS proxy chaos
+    tested: false
+    reason: No production identity or reverse proxy in default CI

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import categories, chat, jobs as jobs_api, papers
+from app.api import categories, chat, jobs as jobs_api, papers, evidence
 from app.services.jobs import JobRepository
 from app.services.processor import PaperWorker
 from app.services.storage import StorageService
@@ -46,6 +46,7 @@ app.include_router(papers.router)
 app.include_router(jobs_api.router)
 app.include_router(chat.router)
 app.include_router(categories.router)
+app.include_router(evidence.router)
 
 
 @app.get("/")

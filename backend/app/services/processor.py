@@ -82,6 +82,18 @@ class PaperWorker:
                 hashlib.sha256((paper_dir / "mindmap.xmind").read_bytes()).hexdigest(),
             )
             self.repository.finish(job_id, state="READY")
+            # Optional source-only V0.3 publication after legacy success.
+            # Never let a failed evidence upgrade corrupt the V0.2 job state.
+            if (os.getenv("P2X_EVIDENCE_ENABLED") == "1"
+                    and os.getenv("P2X_EVIDENCE_AUTOSTAGE") == "1"):
+                try:
+                    from app.services.evidence_autostage import autostage_ready_paper
+                    await asyncio.to_thread(
+                        autostage_ready_paper, self.storage.data_dir,
+                        paper_id, job["revision_id"],
+                    )
+                except Exception:
+                    logger.exception("Optional evidence autostage failed for job %s", job_id)
         except JobCancelled:
             self.repository.finish(job_id, state="CANCELLED")
         except PaperAnalysisError as exc:
