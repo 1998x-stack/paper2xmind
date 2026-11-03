@@ -5,8 +5,8 @@ deployment only an operator with an explicit admin credential can access
 ANY non-demo legacy /api endpoint. Never infer public access from CORS or
 React route visibility.
 
-Local mode retains the preexisting anonymous developer workflow. Operators
-must explicitly select P2X_DEPLOYMENT_MODE=public to launch public demos.
+Protected public mode is the DEFAULT. Anonymous legacy local mode requires
+explicit opt-in and must only be used on a localhost development instance.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ ALLOWED_MODES = frozenset({"local", "public"})
 
 
 def deployment_mode() -> str:
-    return os.environ.get("P2X_DEPLOYMENT_MODE", "local")
+    return os.environ.get("P2X_DEPLOYMENT_MODE", "public")
 
 
 def public_demo_enabled() -> bool:

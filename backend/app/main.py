@@ -12,7 +12,7 @@ from app.services.jobs import JobRepository
 from app.services.processor import PaperWorker
 from app.services.storage import StorageService
 from app.config import settings
-from app.security.private_api import private_api_guard
+from app.security.private_api import private_api_guard, deployment_mode
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,9 @@ async def lifespan(app: FastAPI):
     repo = JobRepository(settings.data_dir)
     storage = StorageService(settings.data_dir)
     task = None
-    if os.getenv("P2X_DISABLE_WORKER", "0") != "1":
+    if (os.getenv("P2X_DISABLE_WORKER", "0") != "1"
+            and (deployment_mode() == "local"
+                 or os.getenv("P2X_ALLOW_PRIVATE_WORKER") == "1")):
         task = asyncio.create_task(PaperWorker(repo, storage).run())
     try:
         yield
