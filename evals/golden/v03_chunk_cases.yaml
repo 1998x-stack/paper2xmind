@@ -1,0 +1,44 @@
+# PR-033 golden scenario mapping. No real scientific accuracy claims.
+schema_version: "v0.3/chunking-golden/1"
+scenarios:
+  - id: CH-001
+    requirement: Exact code-point offsets with NFC and emojis
+    test: tests/test_chunking_v03.py::test_cjk_nfc_and_emoji_offsets_are_source_codepoint_indices
+  - id: CH-002
+    requirement: Exact-once primary partition of long prose
+    test: tests/test_chunking_v03.py::test_long_prose_splits_without_missing_codepoint_and_context_marked
+  - id: CH-003
+    requirement: Atomic table and formula content cannot be truncated
+    test: tests/test_chunking_v03.py::test_oversized_atomic_source_never_truncated
+  - id: CH-004
+    requirement: Section ID boundaries do not bleed context
+    test: tests/test_chunking_v03.py::test_section_boundaries_never_share_one_chunk_or_context
+  - id: CH-005
+    requirement: Strict page boundary option
+    test: tests/test_chunking_v03.py::test_page_policy_hard_never_mixes_pages
+  - id: CH-006
+    requirement: Failing independent audit on tampered/missing/duplicated primary spans
+    test: tests/test_chunking_v03.py::test_independent_validator_detects_tampered_source_span
+  - id: CH-007
+    requirement: Source content and tokenizer identity affect verification
+    test: tests/test_chunking_v03.py::test_wrong_source_and_counter_must_be_rejected
+  - id: CH-008
+    requirement: Semantic evidence recall across boundaries without fake separators
+    test: tests/test_chunk_eval_v03.py::test_cross_boundary_evidence_quote_is_preserved_in_model_text
+  - id: CH-009
+    requirement: Context redundancy is reported independently of source coverage
+    test: tests/test_chunk_eval_v03.py::test_independent_eval_complete_coverage_and_redundancy
+  - id: CH-010
+    requirement: Gold data rights note and source hash, path traversal checks
+    test: tests/test_chunk_eval_v03.py::test_eval_detects_tampered_ir_and_missing_rights_note
+  - id: CH-011
+    requirement: Offline CLI canonical JSON and no artifacts after invalid input
+    test: tests/test_chunking_v03.py::test_offline_cli_consumes_routed_document_and_writes_json_atomically
+  - id: CH-012
+    requirement: Real authorized paper exact-source annotations and model-level recall
+    tested: false
+    limitation: No independently human-annotated real-paper corpus provided
+  - id: CH-013
+    requirement: Exact Qwen tokenizer and context-window reserves
+    tested: false
+    limitation: External model-specific tokenizer not installed in default CI
