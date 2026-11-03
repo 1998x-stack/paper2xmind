@@ -330,3 +330,28 @@ def test_audit_hash_chain_detects_changes_and_is_append_only(tmp_path):
                      "WHERE revision_id=? AND event='STAGE'", (doc.revision_id,))
     with pytest.raises(EvidenceStoreError, match="AUDIT_CHAIN_BROKEN"):
         repo.audit(task["paper_id"], doc.revision_id)
+
+
+
+def test_manifest_hash_detects_self_consistent_artifact_row_rewrite(tmp_path):
+    task, doc, chunks, ledger = fixture_paper(tmp_path)
+    repo = EvidenceRepository(tmp_path)
+    repo.stage(task["paper_id"], doc, chunks, claims=ledger,
+               actor_id="importer-test")
+    repo.publish(task["paper_id"], doc.revision_id, actor_id="importer-test")
+    with sqlite3.connect(repo.path) as db:
+        row = db.execute(
+            "SELECT content FROM evidence_artifacts "
+            "WHERE revision_id=? AND kind='review_analysis'", (doc.revision_id,),
+        ).fetchone()
+        original = json.loads(row[0])
+        original["status"] = "requires_independent_review"
+        original["examined_claim_ids"] = []
+        forged = json.dumps(original).encode("utf-8")
+        db.execute(
+            "UPDATE evidence_artifacts SET content=?,sha256=? "
+            "WHERE revision_id=? AND kind='review_analysis'",
+            (forged, hashlib.sha256(forged).hexdigest(), doc.revision_id),
+        )
+    with pytest.raises(EvidenceStoreError, match="BUNDLE_HASH_MISMATCH"):
+        repo.read(task["paper_id"], doc.revision_id)

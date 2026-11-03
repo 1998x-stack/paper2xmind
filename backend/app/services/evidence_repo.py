@@ -303,6 +303,7 @@ class EvidenceRepository:
                 raise EvidenceStoreError("EVIDENCE_BUNDLE_NOT_FOUND", "Stage first")
             self._revision(db, paper_id, revision_id, item["pdf_sha256"])
             data = self._read_artifacts(db, revision_id)
+            self._verify_bundle_hash(item, data)
             document = DocumentIR.model_validate_json(data["document_ir"])
             chunks = ChunkManifest.model_validate_json(data["chunks"])
             validate_chunk_manifest(document, chunks)
@@ -336,6 +337,21 @@ class EvidenceRepository:
             raise EvidenceStoreError("ARTIFACT_INCOMPLETE", "Claims and review analysis are paired")
         return result
 
+    @staticmethod
+    def _verify_bundle_hash(bundle, artifacts: dict[str, bytes]):
+        expected = _digest(_stable_json_bytes({
+            "revision_id": bundle["revision_id"],
+            "pdf_sha256": bundle["pdf_sha256"],
+            "artifacts": {
+                kind: _digest(blob) for kind, blob in artifacts.items()
+            },
+        }))
+        if expected != bundle["bundle_hash"]:
+            raise EvidenceStoreError(
+                "BUNDLE_HASH_MISMATCH",
+                "Published artifact set does not match version manifest",
+            )
+
     def read(self, paper_id: str, revision_id: str, *, published_only: bool = True) -> dict:
         with self._connect() as db:
             row = db.execute(
@@ -348,6 +364,11 @@ class EvidenceRepository:
             if published_only and row["state"] != "PUBLISHED":
                 raise EvidenceStoreError("NOT_PUBLISHED", "Evidence remains staged")
             artifacts = self._read_artifacts(db, revision_id)
+            full_row = db.execute(
+                "SELECT * FROM evidence_bundles WHERE revision_id=?",
+                (revision_id,),
+            ).fetchone()
+            self._verify_bundle_hash(full_row, artifacts)
             result = self._bundle_metadata(db, revision_id)
             result["documents"] = {
                 key: _read_json(value) for key, value in artifacts.items()
@@ -414,6 +435,10 @@ class EvidenceRepository:
             if bundle is None or bundle["state"] != "PUBLISHED":
                 raise EvidenceStoreError("NOT_PUBLISHED", "Review requires a published bundle")
             stored = self._read_artifacts(db, revision_id)
+            current_bundle = db.execute(
+                "SELECT * FROM evidence_bundles WHERE revision_id=?", (revision_id,),
+            ).fetchone()
+            self._verify_bundle_hash(current_bundle, stored)
             if "claims" not in stored:
                 raise EvidenceStoreError("CANDIDATES_UNAVAILABLE", "No candidate claims to review")
             document = DocumentIR.model_validate_json(stored["document_ir"])
