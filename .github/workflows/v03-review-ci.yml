@@ -28,6 +28,8 @@ jobs:
           python -m compileall -q paper2xmind/review
           python -m paper2xmind.domain.export_schema /tmp/p2x-v035-domains
           python -m paper2xmind.extraction.export_schema /tmp/p2x-v035-extraction
+          python -m paper2xmind.review.export_schema /tmp/p2x-v035-review
+          test -f /tmp/p2x-v035-review/review_outcome_v1.schema.json
           python -m paper2xmind.review --help
       - name: Core and PR-035 adversarial golden tests
         run: python -m pytest tests -q
