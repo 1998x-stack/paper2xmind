@@ -7,3 +7,14 @@ __all__ = [
     "StructuredPDFBlockParser", "PDFBlockParseError", "ParseResult",
     "PageParseDiagnostic", "ParserConfig",
 ]
+
+from .profile import ProfileConfig, DocumentProfile, DocumentProfiler
+from .router import (
+    RouterConfig, ParserRouter, RouteError, ParserAttempt, RoutedDocument,
+)
+from .docling_adapter import DoclingDocumentAdapter, DoclingParseError
+__all__ += [
+    "ProfileConfig", "DocumentProfile", "DocumentProfiler", "RouterConfig",
+    "ParserRouter", "RouteError", "ParserAttempt", "RoutedDocument",
+    "DoclingDocumentAdapter", "DoclingParseError",
+]
