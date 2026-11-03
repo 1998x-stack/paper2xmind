@@ -215,7 +215,7 @@ def test_http_feature_flag_default_deny_roles_review_and_roundtrip(tmp_path, mon
                                    "chunks": chunks.model_dump(mode="json"),
                                    "claims": ledger.model_dump(mode="json")})
         assert result.status_code == 201, result.text
-        assert client.get(endpoint, headers=view).status_code == 422
+        assert client.get(endpoint, headers=view).status_code == 409
         published = client.post(endpoint + "/publish", headers=imp)
         assert published.status_code == 200, published.text
         read = client.get(base + "/latest", headers=view)
@@ -258,3 +258,75 @@ def test_http_wrong_source_revision_rejected(tmp_path, monkeypatch):
                   "chunks": chunks.model_dump(mode="json")},
         )
         assert bad.status_code == 409
+
+
+
+def test_claims_can_be_enriched_once_after_source_only_worker_publication(tmp_path):
+    task, document, chunks, ledger = fixture_paper(tmp_path)
+    repo = EvidenceRepository(tmp_path)
+    initial = repo.stage(task["paper_id"], document, chunks, actor_id="importer-test")
+    repo.publish(task["paper_id"], document.revision_id, actor_id="importer-test")
+    assert initial["bundle_hash"] == repo.read(
+        task["paper_id"], document.revision_id,
+    )["bundle_hash"]
+    appended = repo.enrich_claims(
+        task["paper_id"], document.revision_id, ledger,
+        actor_id="importer-test", expected_bundle_hash=initial["bundle_hash"],
+    )
+    assert appended["bundle_hash"] != initial["bundle_hash"]
+    result = repo.read(task["paper_id"], document.revision_id)
+    assert result["documents"]["claims"]["claims"]
+    assert result["documents"]["document_ir"]["pdf_sha256"] == document.pdf_sha256
+    assert repo.enrich_claims(
+        task["paper_id"], document.revision_id, ledger,
+        actor_id="importer-test", expected_bundle_hash=initial["bundle_hash"],
+    )["bundle_hash"] == appended["bundle_hash"]
+    assert [e["event"] for e in repo.audit(task["paper_id"], document.revision_id)] == [
+        "STAGE", "PUBLISH", "ENRICH_CLAIMS",
+    ]
+
+
+def test_enrichment_cannot_replace_claims_or_ignore_revision_version(tmp_path):
+    task, document, chunks, ledger = fixture_paper(tmp_path)
+    repo = EvidenceRepository(tmp_path)
+    repo.stage(task["paper_id"], document, chunks, actor_id="importer-test")
+    published = repo.publish(task["paper_id"], document.revision_id,
+                             actor_id="importer-test")
+    with pytest.raises(EvidenceStoreError, match="BUNDLE_VERSION_CONFLICT"):
+        repo.enrich_claims(task["paper_id"], document.revision_id, ledger,
+                           actor_id="importer-test", expected_bundle_hash="f"*64)
+    repo.enrich_claims(task["paper_id"], document.revision_id, ledger,
+                       actor_id="importer-test",
+                       expected_bundle_hash=published["bundle_hash"])
+    changed = ledger.model_copy(update={"model_id": "different-model"})
+    with pytest.raises(Exception):
+        repo.enrich_claims(task["paper_id"], document.revision_id, changed,
+                           actor_id="importer-test",
+                           expected_bundle_hash=published["bundle_hash"])
+
+
+def test_autostage_requires_both_flags_and_never_invents_claims(tmp_path, monkeypatch):
+    task, document, chunks, ledger = fixture_paper(tmp_path)
+    from app.services.evidence_autostage import autostage_ready_paper
+    monkeypatch.delenv("P2X_EVIDENCE_AUTOSTAGE", raising=False)
+    monkeypatch.setenv("P2X_EVIDENCE_ENABLED", "1")
+    assert autostage_ready_paper(tmp_path, task["paper_id"], task["revision_id"]) is None
+    monkeypatch.setenv("P2X_EVIDENCE_AUTOSTAGE", "1")
+    published = autostage_ready_paper(tmp_path, task["paper_id"], task["revision_id"])
+    assert published["state"] == "PUBLISHED"
+    assert set(published["artifacts"]) == {"document_ir", "chunks"}
+    assert EvidenceRepository(tmp_path).read(
+        task["paper_id"], task["revision_id"],
+    )["documents"].get("claims") is None
+
+
+def test_audit_hash_chain_detects_changes_and_is_append_only(tmp_path):
+    task, doc, chunks, _ = fixture_paper(tmp_path)
+    repo = EvidenceRepository(tmp_path)
+    repo.stage(task["paper_id"], doc, chunks, actor_id="importer-test")
+    repo.publish(task["paper_id"], doc.revision_id, actor_id="importer-test")
+    with sqlite3.connect(repo.path) as conn:
+        conn.execute("UPDATE evidence_audit_log SET actor_id='forged' "
+                     "WHERE revision_id=? AND event='STAGE'", (doc.revision_id,))
+    with pytest.raises(EvidenceStoreError, match="AUDIT_CHAIN_BROKEN"):
+        repo.audit(task["paper_id"], doc.revision_id)
