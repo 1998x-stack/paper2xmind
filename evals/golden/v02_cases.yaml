@@ -1,0 +1,51 @@
+# V0.2 golden contract scenarios
+#
+# This fixture manifest is a review checklist, not proof of all real-LLM
+# scenarios. Offline integration tests explicitly exercise a subset.
+# V0.3 adds page-level evidence and true dual-column/OCR evaluation.
+
+cases:
+  - id: G01
+    input: English single-column digital PDF
+    expected: READY with XMind round-trip and preserved notes
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_real_pdf_pipeline_ready
+  - id: G02
+    input: Chinese digital PDF
+    expected: READY with Unicode text preserved
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_unicode_xmind_output
+    limitation: Unicode output only; Chinese input extraction is not evaluated
+  - id: G03
+    input: Two-column scientific PDF
+    expected: READY or parser-visible limitation
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_two_column_text_ingestion
+    limitation: Column reading order not evaluated
+  - id: G04
+    input: Long multi-section paper exceeding model token budget
+    expected: Chunk analysis followed by verified merge
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_multi_chunk_merge
+    limitation: LLM and merge are mocked; no real model inference
+  - id: G05
+    input: Paper with figures/tables and mathematical symbols
+    expected: No falsely attributed research claims
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_pdf_with_table_and_diagram
+    limitation: Figures and tables are accepted; semantic fidelity not evaluated
+  - id: G06
+    input: Scanned PDF without extractable text
+    expected: FAILED_TERMINAL with PARSER_EMPTY, no XMind
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_scanned_pdf_fails_closed
+  - id: G07
+    input: Malformed LLM JSON
+    expected: FAILED_TERMINAL with LLM_BAD_JSON, no XMind
+    automated: true
+    test: backend/tests/test_pipeline_v02.py::test_invalid_llm_never_publishes
+  - id: G08
+    input: Duplicate PDF submission
+    expected: Existing job reused with matching paper_id
+    automated: true
+    test: backend/tests/test_jobs_v02.py::test_job_create_dedup_and_events

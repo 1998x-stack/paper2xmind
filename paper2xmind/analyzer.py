@@ -17,11 +17,19 @@ import json
 import logging
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIConnectionError, APITimeoutError, RateLimitError
 
 from paper2xmind.config import settings as default_settings
 
 logger = logging.getLogger(__name__)
+
+
+class PaperAnalysisError(RuntimeError):
+    """Processing failure which must never be published as a valid mind map."""
+
+    def __init__(self, code: str, message: str):
+        self.code = code
+        super().__init__(message)
 
 
 class ContentAnalyzer:
@@ -189,6 +197,24 @@ Example format:
 }}
 """
 
+    @staticmethod
+    def _validate_tree(root: Any, *, max_nodes: int = 10000) -> None:
+        """Reject placeholders, malformed children, and abnormally large trees."""
+        pending = [root]
+        visited = 0
+        while pending:
+            node = pending.pop()
+            visited += 1
+            if visited > max_nodes or not isinstance(node, dict):
+                raise ValueError("Invalid tree size or node type")
+            name = node.get("name")
+            children = node.get("children", [])
+            if (not isinstance(name, str) or not name.strip()
+                    or name in {"Parse Error", "Error"}
+                    or not isinstance(children, list)):
+                raise ValueError("Invalid paper node")
+            pending.extend(children)
+
     async def analyze_content(self, content: str, is_partial: bool = False) -> dict[str, Any]:
         """
         对单个文本块调用模型，解析得到一层层嵌套的 dict 树（根节点一个 dict）。
@@ -230,14 +256,16 @@ Example format:
             raw = response.choices[0].message.content
             result_text = (raw or "").strip()
             result_text = self._strip_markdown_fences(result_text)
-            return json.loads(result_text)
+            result = json.loads(result_text)
+            self._validate_tree(result)
+            return result
 
-        except json.JSONDecodeError:
-            logger.exception("JSON parsing error:")
-            return {"name": "Parse Error", "description": "Failed to parse structure", "children": []}
-        except OSError:
-            logger.exception("Error analyzing content:")
-            return {"name": "Error", "description": "Connection or I/O error", "children": []}
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            logger.exception("Invalid LLM structure")
+            raise PaperAnalysisError("LLM_BAD_JSON", "Model response is not a valid paper tree") from exc
+        except (OSError, APIConnectionError, APITimeoutError, RateLimitError) as exc:
+            logger.exception("LLM connection or I/O error")
+            raise PaperAnalysisError("LLM_IO_ERROR", "Model request failed") from exc
 
     async def _analyze_with_limit(self, content: str, is_partial: bool) -> dict[str, Any]:
         """
@@ -298,6 +326,7 @@ Example format:
             merge 阶段 max_tokens=8192，因输出需容纳整棵树；仍可能受模型实际上限约束。
         """
         if len(structures) == 1:
+            self._validate_tree(structures[0])
             return structures[0]
 
         structures_json = json.dumps(structures, indent=2, ensure_ascii=False)
@@ -338,12 +367,10 @@ Root node name should be: "{paper_title}"
             raw = response.choices[0].message.content
             result_text = (raw or "").strip()
             result_text = self._strip_markdown_fences(result_text)
-            return json.loads(result_text)
+            result = json.loads(result_text)
+            self._validate_tree(result)
+            return result
 
-        except Exception:
-            logger.exception("Error merging structures:")
-            return {
-                "name": paper_title,
-                "description": "Merged structure from multiple chunks",
-                "children": structures,
-            }
+        except Exception as exc:
+            logger.exception("Failed to merge paper structures")
+            raise PaperAnalysisError("LLM_MERGE_FAILED", "Could not merge paper structures") from exc

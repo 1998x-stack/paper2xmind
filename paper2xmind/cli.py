@@ -62,7 +62,7 @@ class ArxivToXmind:
         self.xmind_generator = XMindGenerator(settings=self.settings)
 
     @timer
-    async def convert(self, input_str: str, output_filename: str | None = None) -> str:
+    async def convert(self, input_str: str, output_filename: str | None = None, stage_callback=None) -> str:
         """
         执行单篇论文（或 PDF）的完整转换流程。
 
@@ -84,13 +84,20 @@ class ArxivToXmind:
         print("=" * 60)
 
         # --- Step 1：解析输入，得到磁盘上的 PDF 路径，并尽量解析 arxiv_id 供元数据使用 ---
+        if stage_callback is not None:
+            stage_callback("ACQUIRING")
         print("\n[Step 1/5] Getting PDF file...")
         pdf_path = self.downloader.process_input(input_str)
         arxiv_id = self.downloader.extract_arxiv_id(input_str)
 
         # --- Step 2：PyMuPDF 抽文本；pages_content 用于分块，full_text 用于整篇或 token 估算 ---
+        if stage_callback is not None:
+            stage_callback("EXTRACTING")
         print("\n[Step 2/5] Extracting text from PDF...")
         full_text, pages_content = self.pdf_extractor.extract_text_from_pdf(pdf_path)
+
+        if not pages_content or not full_text.strip() or all(not p["text"].strip() for p in pages_content):
+            raise ValueError("PARSER_EMPTY: PDF contains no extractable text")
 
         total_pages = len(pages_content)
         print(f"Total pages: {total_pages}")
@@ -99,6 +106,8 @@ class ArxivToXmind:
         print(f"Estimated tokens: {estimated_tokens:,}")
 
         # --- Step 3：根据估算 token 与阈值决定单次分析还是分块+合并 ---
+        if stage_callback is not None:
+            stage_callback("ANALYZING")
         print("\n[Step 3/5] Analyzing content with AI...")
 
         need_chunking = estimated_tokens > self.settings.max_tokens_per_request
@@ -136,6 +145,8 @@ class ArxivToXmind:
         save_json(ai_structure, ai_structure_path)
 
         # --- Step 4：AI JSON → 带 node_id 的中间树；挂元数据；校验与优化 ---
+        if stage_callback is not None:
+            stage_callback("BUILDING")
         print("\n[Step 4/5] Building XMind structure...")
         xmind_structure = self.structure_builder.build_xmind_structure(ai_structure)
 
@@ -145,9 +156,10 @@ class ArxivToXmind:
         )
 
         if not self.structure_builder.validate_structure(xmind_structure):
-            print("Warning: Structure validation failed")
+            raise ValueError("INVALID_STRUCTURE: failed XMind node validation")
 
-        xmind_structure = self.structure_builder.optimize_structure(xmind_structure)
+        # Preserve the full semantic tree; visual collapsing must not delete content.
+        # optimize_structure() is intentionally not applied to persisted artifacts.
 
         xmind_structure_path = os.path.join(
             self.settings.data_dir, "xmind_structure.json",
@@ -155,6 +167,8 @@ class ArxivToXmind:
         save_json(xmind_structure, xmind_structure_path)
 
         # --- Step 5：打包 ZIP 格式 .xmind ---
+        if stage_callback is not None:
+            stage_callback("EXPORTING")
         print("\n[Step 5/5] Generating XMind file...")
 
         if output_filename is None:
