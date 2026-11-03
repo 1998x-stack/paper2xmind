@@ -45,6 +45,9 @@ test.beforeEach(async ({ page }) => {
     json: { papers: [{ paper_id: paperId, title: 'Synthetic research paper',
                      status: 'READY', job_id: 'job_123' }] },
   }))
+  await page.route('**/api/papers/*/chat', route => route.fulfill({
+    json: { messages: [] },
+  }))
   await page.route('**/api/papers/*/mindmap', route => route.fulfill({
     json: { paper_id: paperId, xmind_data: { id: 'root', title: 'Original tree', children: [] } },
   }))
@@ -105,6 +108,6 @@ test('access denial is visible; source is never rendered on a rejected request',
   await page.getByRole('button', { name: 'Evidence inspector' }).click()
   await page.getByLabel('Evidence access token').fill('wrong-token-in-test')
   await page.getByRole('button', { name: 'Load evidence' }).click()
-  await expect(page.getByRole('alert')).toContainText('401')
+  await expect(page.getByText('Evidence access failed (401).')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'F1 score is 0.76' })).toHaveCount(0)
 })
