@@ -226,7 +226,14 @@ class StructuredPDFBlockParser:
             image_count = 0
         raw = page_dict.get("blocks", [])
         layout = reconstruct_layout(raw, float(page_dict["width"]))
-        font_values = [c.max_font_size for c in layout.ordered if c.max_font_size > 0]
+        # Weight typical body paragraphs by text length. An ordinary two-block
+        # page (large short title + long smaller paragraph) must not inflate
+        # the font baseline into a false non-heading classification.
+        font_values = [
+            c.max_font_size
+            for c in layout.ordered if c.max_font_size > 0
+            for _ in range(max(1, min(20, len(c.text) // 20)))
+        ]
         base_font = median(font_values) if font_values else 11.0
         output: list[DocumentBlock] = []
         skipped = 0

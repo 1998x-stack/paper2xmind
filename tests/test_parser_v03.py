@@ -187,7 +187,7 @@ def test_reproducible_artifact_ids_and_hash(tmp_path):
 
 def test_invalid_input_and_limits_fail_closed(tmp_path):
     invalid = tmp_path / "invalid.pdf"
-    invalid.write_bytes(b"not really a PDF, invalid")
+    invalid.write_bytes(b"not really a PDF, invalid" * 20)
     with pytest.raises(PDFBlockParseError, match="PDF_PARSE_FAILED"):
         _parse(invalid)
     with pytest.raises(PDFBlockParseError, match="PDF_NOT_FOUND"):
