@@ -272,3 +272,21 @@ def test_router_cli_is_opt_in_and_writes_atomic_json(tmp_path):
                           capture_output=True, text=True)
     assert fail.returncode != 0
     assert not (tmp_path / "bad.json").exists()
+
+
+
+def test_same_length_fabricated_upgrade_text_is_rejected(tmp_path):
+    """A page full of gibberish must not pass the character-count gate."""
+    path = make_pdf(tmp_path)
+    def fabricate(original):
+        block = original.blocks[0]
+        fabricated = "Z" * len(block.normalized_text)
+        bad = block.model_copy(update={"text": fabricated,
+                                       "normalized_text": fabricated})
+        return upgrade(original, blocks=(bad,))
+    routed = ParserRouter(
+        RouterConfig(mode="structured", enable_docling=True),
+        structured_adapter=StubAdapter(fabricate),
+    ).parse(path, revision_id=REV)
+    assert routed.selected_parser == "pymupdf_block"
+    assert routed.attempts[-1].reason == "UPGRADE_TEXT_DRIFT"

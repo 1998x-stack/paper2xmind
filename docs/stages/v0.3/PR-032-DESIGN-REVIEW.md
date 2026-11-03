@@ -242,3 +242,15 @@ https://github.com/docling-project/docling/blob/main/docling/.agents/skills/docl
 PyMuPDF coordinates and text extraction:
 https://pymupdf.readthedocs.io/en/latest/page.html
 https://pymupdf.readthedocs.io/en/latest/app1.html
+
+
+### 2.5 Review 补丁：仅比文本数量的门禁会接受伪造数据
+
+首次 CI 完成后又发现一个根本性遗漏：攻击性或严重故障的解析器
+可能输出与原始 PDF **等长**的无关文本，从而绕过 80% 字符保留率。
+PR-032 因此增加逐页、顺序无关的 Unicode 双字组重合门禁。
+它忽略空白与大小写差异，但比较文本的实际内容组成；
+等长的垃圾文本必须触发 UPGRADE_TEXT_DRIFT。
+双字组重合率阈值默认为 0.55，需使用真实人工标注的论文进行校准。
+该指标是交叉解析器的一致性检查，而非对 PDF 原文字形、
+表格数值或作者语义支持的最终证明。

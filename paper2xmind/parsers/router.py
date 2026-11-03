@@ -7,6 +7,8 @@ The text-retention ratio is a *heuristic guard*, not an accuracy metric.
 from __future__ import annotations
 
 from pathlib import Path
+from collections import Counter
+import re
 from typing import Literal, Protocol
 
 from pydantic import Field, FiniteFloat, model_validator
@@ -30,6 +32,7 @@ class RouterConfig(DomainModel):
     enable_docling: bool = False
     fallback_on_error: bool = True
     min_native_text_retention: FiniteFloat = Field(default=0.8, ge=0, le=1)
+    min_native_bigram_overlap: FiniteFloat = Field(default=0.55, ge=0, le=1)
     min_structured_text_chars: int = Field(default=1, ge=1)
     page_size_tolerance_pt: FiniteFloat = Field(default=0.5, ge=0, le=5)
 
@@ -147,6 +150,33 @@ class ParserRouter:
         for old, new in zip(baseline_counts, proposed_counts):
             if old and new / old < self.config.min_native_text_retention:
                 raise RouteError("UPGRADE_TEXT_REGRESSION", "Page lost too much text")
+
+        # Equal-length fabricated text can pass a character-retention gate.
+        # Compare order-independent bags of Unicode character bigrams. The
+        # overlap is only a conservative cross-parser drift check; it is NOT
+        # a proof that a quote appears verbatim in the original PDF.
+        before_grams = self._page_bigrams(baseline)
+        after_grams = self._page_bigrams(doc)
+        for original, proposed in zip(before_grams, after_grams):
+            total = sum(original.values())
+            if total == 0:
+                continue
+            common = sum(min(n, proposed.get(gram, 0))
+                         for gram, n in original.items())
+            if common / total < self.config.min_native_bigram_overlap:
+                raise RouteError("UPGRADE_TEXT_DRIFT",
+                                 "Structured text differs too much from native extraction")
+
+    @staticmethod
+    def _page_bigrams(document: DocumentIR) -> list[Counter[str]]:
+        out: list[Counter[str]] = [Counter() for _ in document.pages]
+        for block in document.blocks:
+            text = re.sub(r"\s+", "", block.normalized_text.casefold())
+            if len(text) > 1:
+                out[block.page_index].update(
+                    text[i:i + 2] for i in range(len(text) - 1)
+                )
+        return out
 
     @staticmethod
     def _native(result: ParseResult, profile: DocumentProfile,
