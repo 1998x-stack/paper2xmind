@@ -73,7 +73,7 @@ def test_graph_is_validated_for_orphans_missing_edges_and_duplicates():
     with pytest.raises(ValidationError, match="MAP_EDGE_SET_MISMATCH"):
         ResearchMap.model_validate(payload)
     payload = original.model_dump(mode="python")
-    payload["nodes"].append(payload["nodes"][1])
+    payload["nodes"] = list(payload["nodes"]) + [payload["nodes"][1]]
     with pytest.raises(ValidationError, match="MAP_DUPLICATE_NODE"):
         ResearchMap.model_validate(payload)
     payload = original.model_dump(mode="python")
