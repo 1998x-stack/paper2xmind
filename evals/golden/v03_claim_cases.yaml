@@ -63,3 +63,9 @@ scenarios:
     requirement: Real Qwen/vLLM or OpenAI-compatible API inference and cost
     tested: false
     limitation: No external model calls in default CI; manual opt-in required
+  - id: EX-021
+    requirement: Independently reconstruct source chunk model request SHA-256
+    test: tests/test_extraction_v03.py::test_model_visible_input_hash_can_be_reconstructed_independently
+  - id: EX-022
+    requirement: Online adapter arguments verified through SDK mock only; no real API calls
+    test: tests/test_extraction_v03.py::test_opt_in_openai_adapter_uses_json_mode_without_real_network

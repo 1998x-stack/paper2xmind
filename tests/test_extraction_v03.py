@@ -8,6 +8,7 @@ import hashlib
 import json
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -17,7 +18,7 @@ from paper2xmind.chunking import ChunkManifest
 from paper2xmind.extraction import (
     GroundedClaimExtractor, ExtractionConfig, ClaimExtractionError,
     ClaimExtractionLedger, FixtureClaimModel, RawExtractionResponse,
-    validate_extraction_ledger, make_request,
+    validate_extraction_ledger, make_request, OpenAIClaimModel,
 )
 from test_chunking_v03 import make_document, chunk
 
@@ -435,3 +436,40 @@ def test_model_visible_input_hash_can_be_reconstructed_independently():
         validate_extraction_ledger(
             doc, manifest, ledger.model_copy(update={"per_chunk": (forged_record,)})
         )
+
+
+
+def test_opt_in_openai_adapter_uses_json_mode_without_real_network(monkeypatch):
+    """Mock SDK at constructor; test adapter arguments without external calls."""
+    import openai
+
+    captured = {}
+    def fake_client(**kwargs):
+        captured["init"] = kwargs
+        def generate(**params):
+            captured["params"] = params
+            return SimpleNamespace(choices=[
+                SimpleNamespace(message=SimpleNamespace(content=response(
+                    abstain="No claims explicitly supported by the provided text"
+                )))
+            ])
+        return SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=generate)
+        ))
+
+    monkeypatch.setattr(openai, "OpenAI", fake_client)
+    model = OpenAIClaimModel(
+        "local-compatible-model", base_url="http://localhost:9000/v1",
+        timeout=5, max_output_tokens=500,
+    )
+    doc, manifest = fixture_doc()
+    req = make_request(manifest.chunks[0], model_id=model.model_id)
+    payload = model.generate(req)
+    assert "claim_candidates/1.0.0" in payload
+    assert captured["params"]["model"] == "local-compatible-model"
+    assert captured["params"]["response_format"] == {"type": "json_object"}
+    assert captured["params"]["temperature"] == 0
+    assert captured["params"]["max_tokens"] == 500
+    assert captured["params"]["messages"][1]["content"] == req.user_prompt
+    with pytest.raises(ClaimExtractionError, match="MODEL_ID_MISMATCH"):
+        model.generate(req.model_copy(update={"model_id": "another-model"}))

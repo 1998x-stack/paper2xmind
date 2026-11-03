@@ -264,3 +264,8 @@ JSON Schema：
 独立评估 Claim 的原文语义蕴含、数字/单位、实验条件、作者归属、
 引用前人工作、矛盾与审核签名；只有在可信审核者授权与记录下，
 才允许从 candidate 向 supported/unsupported/contradicted 等状态过渡。
+
+
+### P1-8：请求级指纹与在线适配器合约
+
+每条 ChunkExtractionRecord 还保存 request_sha256，内容来自实际 ModelRequest.user_prompt。独立 validator 用相同 ChunkManifest、固定 prompt version 和 model_id 重新生成请求并复算哈希，拒绝篡改输入记录。response_sha256 记录原始回复字节摘要；仅凭哈希无法恢复回复本身。在线适配器通过模拟 SDK 的无网络测试验证 JSON Mode、temperature=0、max_tokens 和参数传递；不声称真实模型兼容性或语义准确度已验证。
