@@ -2,11 +2,13 @@
 
 # paper2xmind
 
-**Turn any research paper into a structured mind map — in one command.**
+**Research maps that show their sources.**
+
+V0.4 introduces a traceable research-reading experience alongside the original CLI.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-50%20passed-brightgreen.svg)](#development)
+[![V0.4 CI](https://img.shields.io/badge/CI-Python%20%2B%20browser-blue.svg)](#development)
 
 <p align="center">
   <img src="https://img.shields.io/badge/ArXiv_Paper-PDF-red?style=for-the-badge" alt="input"/>
@@ -28,10 +30,66 @@ Drop an ArXiv URL, paper ID, or local PDF — get back a beautifully structured 
 
 Reading dense research papers is slow. Skimming misses details. **paper2xmind** gives you the best of both worlds — a structured overview you can explore at your own pace.
 
-- Spend **2 minutes** instead of 30 to grasp a paper's structure
+- Explore source-linked results without assuming that an AI summary is scientifically verified
 - Never lose track of how sections relate to each other
 - Build a personal library of paper mind maps for quick reference
 - Great for **literature reviews**, **journal clubs**, and **study groups**
+
+## V0.4: protected public research demo
+
+A deterministic ORIGINAL synthetic PDF passes through the real PyMuPDF
+parser, Chunker, source-grounded ClaimCandidate extractor and ResearchMap
+projector. Its numbers are FICTIONAL: it is not a peer-reviewed paper or
+scientific result. No external model call, API key or user upload is needed.
+
+Start the backend and frontend behind the same-origin /api reverse proxy:
+
+    export P2X_DEPLOYMENT_MODE=public
+    export P2X_PUBLIC_DEMO_ENABLED=1
+    export P2X_DISABLE_WORKER=1
+    # For a frontend build that opens the public demo as its home page:
+    export VITE_PUBLIC_LANDING=1
+
+Visit /demo. Anonymous API endpoints are ONLY:
+- GET /api/public/demos
+- GET /api/public/demos/synthetic-retrieval
+- GET /api/public/demos/synthetic-retrieval/source.pdf
+
+The map and outline use the same immutable ResearchMap. Clicking an
+unreviewed candidate displays its exact original source-block text span
+and links to the corresponding PDF page; it does not claim glyph-accurate
+PDF highlighting or that a scientifically correct conclusion was proven.
+
+### Critical private-access boundary
+
+**Default is protected public mode**, even if P2X_PUBLIC_DEMO_ENABLED is
+unset. All legacy API routes (paper list, uploads, private PDFs, jobs,
+categories and chat) require an ADMIN bearer credential from the server-side
+P2X_EVIDENCE_AUTH_JSON registry. The PR-035 /api/evidence routes continue
+to enforce their own reviewer role and HMAC signature verification.
+
+The private ResearchMap endpoint is available only when both
+P2X_EVIDENCE_ENABLED=1 and P2X_RESEARCH_MAP_ENABLED=1:
+- GET /api/research/papers/{paper_id}/maps/latest
+
+This system still uses a single private workspace; it is NOT multi-tenant.
+Do not store bearer tokens or reviewer signing keys in frontend bundles.
+Require TLS, a trusted reverse proxy and credential rotation before
+connecting a private workspace to the internet.
+
+To preserve the V0.2 anonymous workflow on localhost during development,
+explicitly set:
+
+    export P2X_DEPLOYMENT_MODE=local
+
+Local mode is UNSAFE on a public network and must never be enabled there.
+The private Worker is disabled in protected public mode unless
+P2X_ALLOW_PRIVATE_WORKER=1 is explicitly configured.
+
+### Integration prerequisite
+
+V0.3 PRs #2-#8 were stacked and merged into feature branches, not main.
+Review and merge integration PR #9 before merging this V0.4 product work.
 
 ## Quick Start
 
